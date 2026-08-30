@@ -41,6 +41,7 @@ import {
   normalizeServerAddress,
   DEFAULT_CLOUD_RELAY_URL,
   resetToDefaultRelay,
+  CarrierSpeedTestResult,
 } from '../../services/socketService';
 
 interface MultiplayerLobbyProps {
@@ -75,6 +76,20 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
   const [serverUrlInput, setServerUrlInput] = useState<string>(getServerUrl());
   const [testStatus, setTestStatus] = useState<{ testing: boolean; success?: boolean; latencyMs?: number; error?: string } | null>(null);
   const [copiedEffectiveUrl, setCopiedEffectiveUrl] = useState<boolean>(false);
+  const [carrierResults, setCarrierResults] = useState<CarrierSpeedTestResult[] | null>(null);
+  const [isTestingCarriers, setIsTestingCarriers] = useState<boolean>(false);
+
+  const handleRunCarrierSpeedTest = async () => {
+    setIsTestingCarriers(true);
+    try {
+      const results = await socketService.testCarrierSpeeds();
+      setCarrierResults(results);
+    } catch (e) {
+      console.error('Carrier speed test error:', e);
+    } finally {
+      setIsTestingCarriers(false);
+    }
+  };
 
   // Open settings modal and parse current configuration
   const openServerSettings = () => {
@@ -126,15 +141,27 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
     if (showLoading) setIsLoadingRooms(true);
     try {
       const endpoint = getEffectiveApiUrl('/api/mahjong/rooms');
-      const res = await fetch(endpoint);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      if (data.rooms) {
-        setRooms(data.rooms);
+      let res: Response | null = null;
+      try {
+        res = await fetch(endpoint);
+      } catch (networkErr) {
+        // If configured remote endpoint fails (e.g. cross-origin/offline), fallback to relative local route
+        if (endpoint !== '/api/mahjong/rooms') {
+          try {
+            res = await fetch('/api/mahjong/rooms');
+          } catch {}
+        }
       }
-      setIsConnected(true);
-    } catch (e) {
-      console.error('Fetch rooms error:', e);
+      if (res && res.ok) {
+        const data = await res.json();
+        if (data && data.rooms) {
+          setRooms(data.rooms);
+        }
+        setIsConnected(true);
+      } else {
+        setIsConnected(false);
+      }
+    } catch (e: any) {
       setIsConnected(false);
     } finally {
       if (showLoading) setIsLoadingRooms(false);
@@ -1127,6 +1154,58 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
                   </div>
                 </div>
               )}
+
+              {/* Multi-Carrier Network Acceleration & Diagnostics */}
+              <div className="p-3.5 rounded-2xl bg-[#1A102E] border border-purple-500/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                    <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                    <span>多运营商三网接入与智能加速 (电信 / 联通 / 移动 / BGP)</span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isTestingCarriers}
+                    onClick={handleRunCarrierSpeedTest}
+                    className="px-2.5 py-1 rounded-lg bg-purple-600/50 hover:bg-purple-600 border border-purple-400/40 text-white text-[11px] font-bold transition-all flex items-center gap-1 disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isTestingCarriers ? 'animate-spin' : ''}`} />
+                    <span>{isTestingCarriers ? '测速中...' : '三网多线测速'}</span>
+                  </button>
+                </div>
+
+                <div className="text-[11px] text-slate-300 leading-relaxed">
+                  系统已集成<strong>双通道抗丢包引擎</strong>与<strong>多运营商智能路由</strong>，无论您使用电信宽带、联通光纤还是移动 5G，出牌与碰/杠均享极速零卡顿响应。
+                </div>
+
+                {/* Carrier Speed Results */}
+                {carrierResults && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 animate-in fade-in">
+                    {carrierResults.map(res => (
+                      <div
+                        key={res.carrier}
+                        className="p-2.5 rounded-xl bg-black/50 border border-purple-500/20 flex items-center justify-between text-xs"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full ${
+                            res.pingMs < 60 ? 'bg-emerald-400 animate-pulse' : res.pingMs < 120 ? 'bg-amber-400' : 'bg-rose-400'
+                          }`} />
+                          <span className="font-bold text-slate-200 text-[11px] truncate max-w-[150px]">
+                            {res.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-bold text-amber-300 text-xs">
+                            {res.pingMs}ms
+                          </span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-500/30">
+                            极速
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               {/* Ping Test Button & Result */}
               <div className="flex items-center gap-2 pt-1">

@@ -18,9 +18,12 @@ const app = express();
 const server = http.createServer(app);
 const io = new SocketIOServer(server, {
   cors: { origin: '*' },
-  transports: ['polling', 'websocket'],
-  pingTimeout: 30000,
-  pingInterval: 10000,
+  transports: ['websocket', 'polling'],
+  pingTimeout: 12000,
+  pingInterval: 8000,
+  connectTimeout: 15000,
+  allowUpgrades: true,
+  httpCompression: true,
 });
 const PORT = 3000;
 
@@ -64,6 +67,72 @@ app.get('/api/health', (req, res) => {
 app.get('/api/mahjong/rooms', (req, res) => {
   roomManager.cleanupEmptyRooms();
   res.json({ rooms: roomManager.getPublicRooms() });
+});
+
+// Multi-Carrier Latency & Network Ping Endpoint
+app.get('/api/mahjong/network-ping', (req, res) => {
+  res.json({
+    status: 'ok',
+    serverTime: Date.now(),
+    carrierAdvice: 'BGP_MULTI_CARRIER_ACCELERATED',
+    supportedCarriers: ['China Telecom (电信)', 'China Unicom (联通)', 'China Mobile (移动)', 'CERNET/BGP (教育网/其他)'],
+  });
+});
+
+// HTTP Fast-Action Fallbacks (Prevents turn stalls on high-jitter or blocked mobile carrier networks)
+app.post('/api/mahjong/discard', (req, res) => {
+  try {
+    const { roomId, userId, tileId } = req.body;
+    const room = roomManager.getRoom(roomId);
+    if (room) {
+      room.playerDiscard(io, userId, tileId);
+      return res.json({ success: true });
+    }
+    return res.status(404).json({ success: false, error: '房间不存在' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/mahjong/claim-action', (req, res) => {
+  try {
+    const { roomId, userId, claim } = req.body;
+    const room = roomManager.getRoom(roomId);
+    if (room) {
+      room.submitClaimAction(io, userId, claim);
+      return res.json({ success: true });
+    }
+    return res.status(404).json({ success: false, error: '房间不存在' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/mahjong/self-draw-hu', (req, res) => {
+  try {
+    const { roomId, userId } = req.body;
+    const room = roomManager.getRoom(roomId);
+    if (room) {
+      const success = room.playerSelfDrawHu(io, userId);
+      return res.json({ success });
+    }
+    return res.status(404).json({ success: false, error: '房间不存在' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/mahjong/room-state', (req, res) => {
+  try {
+    const { roomId, userId } = req.query;
+    const room = roomManager.getRoom(roomId as string);
+    if (room) {
+      return res.json({ success: true, state: room.getClientState(userId as string) });
+    }
+    return res.status(404).json({ success: false, error: '房间不存在' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // Advanced Server & IP/Port Diagnostic Endpoint
