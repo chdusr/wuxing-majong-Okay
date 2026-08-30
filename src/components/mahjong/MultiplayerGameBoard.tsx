@@ -163,6 +163,10 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
     setHasSubmittedClaim(false);
   }, [gameState.lastDiscard?.tile?.id, gameState.lastDiscard?.playerIndex]);
 
+  // Fingerprint keys to guarantee immediate reaction when drawing or discarding
+  const handFingerprint = (myPlayer?.hand || []).map(t => t.id).join(',');
+  const lastDrawnFingerprint = myPlayer?.lastDrawnTile?.id || '';
+
   // Sync hand with server updates while strictly preserving custom/smart-organized order
   useEffect(() => {
     if (!myPlayer?.hand) return;
@@ -221,7 +225,7 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
       // Safe fallback if count mismatch
       return serverHand;
     });
-  }, [myPlayer?.hand]);
+  }, [myPlayer?.hand, handFingerprint, lastDrawnFingerprint, gameState.currentTurn, gameState.wallRemaining]);
 
   // Turn Countdown Timer effect
   useEffect(() => {

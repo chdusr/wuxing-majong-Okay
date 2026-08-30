@@ -95,11 +95,12 @@ export class MahjongRoom {
   getClientState(userId?: string): MultiplayerGameState {
     const maskedPlayers = this.players.map(p => {
       if (!p) return null;
-      const isMe = userId && p.userId === userId;
+      const isMe = Boolean(userId && p.userId === userId);
       return {
         ...p,
-        hand: isMe || this.status === 'round_end' ? p.hand : undefined,
+        hand: isMe || this.status === 'round_end' ? (p.hand ? [...p.hand] : []) : undefined,
         handCount: p.hand ? p.hand.length : 0,
+        lastDrawnTile: isMe || this.status === 'round_end' ? p.lastDrawnTile : null,
       };
     });
 
@@ -120,6 +121,16 @@ export class MahjongRoom {
       roundNumber: this.roundNumber,
       diceRoll: this.diceRoll,
     };
+  }
+
+  // Update socket ID for a player (handles reconnects and transport switches)
+  updatePlayerSocket(userId: string, socketId: string): void {
+    this.lastActiveAt = Date.now();
+    const player = this.players.find(p => p && p.userId === userId);
+    if (player) {
+      player.id = socketId;
+      player.isConnected = true;
+    }
   }
 
   // Add a player into an open seat or reconnect
@@ -898,7 +909,7 @@ export class MahjongRoom {
   // Broadcast state to each socket in room
   broadcastState(io: SocketIOServer): void {
     this.lastActiveAt = Date.now();
-    // Send customized view to each seated player
+    // 1. Send personalized view (including private hand) to each seated human player
     this.players.forEach(player => {
       if (player && !player.isBot && player.id) {
         const state = this.getClientState(player.userId);
@@ -906,11 +917,12 @@ export class MahjongRoom {
       }
     });
 
-    // Send spectator view to room channel and spectators
+    // 2. Send spectator view to spectators only
     const publicState = this.getClientState();
-    io.to(this.roomId).emit('room:public_state', publicState);
     this.spectators.forEach(spec => {
-      io.to(spec.socketId).emit('room:game_state', publicState);
+      if (spec.socketId) {
+        io.to(spec.socketId).emit('room:game_state', publicState);
+      }
     });
   }
 

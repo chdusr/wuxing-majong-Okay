@@ -547,6 +547,8 @@ io.on('connection', socket => {
   socket.on('room:set_ready', (data: { roomId: string; userId: string; isReady: boolean }) => {
     const room = roomManager.getRoom(data.roomId);
     if (room) {
+      room.updatePlayerSocket(data.userId, socket.id);
+      socket.join(data.roomId);
       room.setReady(data.userId, data.isReady);
       room.broadcastState(io);
     }
@@ -607,6 +609,8 @@ io.on('connection', socket => {
       if (callback) callback({ success: false, error: '房间不存在' });
       return;
     }
+    room.updatePlayerSocket(data.userId, socket.id);
+    socket.join(data.roomId);
     if (room.hostUserId !== data.userId) {
       if (callback) callback({ success: false, error: '仅房主可开启对局' });
       return;
@@ -626,6 +630,8 @@ io.on('connection', socket => {
   socket.on('room:discard', (data: { roomId: string; userId: string; tileId: string }) => {
     const room = roomManager.getRoom(data.roomId);
     if (room) {
+      room.updatePlayerSocket(data.userId, socket.id);
+      socket.join(data.roomId);
       room.playerDiscard(io, data.userId, data.tileId);
     }
   });
@@ -636,6 +642,8 @@ io.on('connection', socket => {
     (data: { roomId: string; userId: string; claim: AvailableClaim | null }) => {
       const room = roomManager.getRoom(data.roomId);
       if (room) {
+        room.updatePlayerSocket(data.userId, socket.id);
+        socket.join(data.roomId);
         room.submitClaimAction(io, data.userId, data.claim);
       }
     }
@@ -645,6 +653,8 @@ io.on('connection', socket => {
   socket.on('room:self_draw_hu', (data: { roomId: string; userId: string }, callback) => {
     const room = roomManager.getRoom(data.roomId);
     if (room) {
+      room.updatePlayerSocket(data.userId, socket.id);
+      socket.join(data.roomId);
       const success = room.playerSelfDrawHu(io, data.userId);
       if (callback) callback({ success });
     }

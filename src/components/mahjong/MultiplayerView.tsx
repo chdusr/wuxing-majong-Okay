@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MultiplayerGameState, ChatMessage } from '../../types/multiplayer';
-import { socketService } from '../../services/socketService';
+import { socketService, getLocalUserProfile } from '../../services/socketService';
 import { MultiplayerLobby } from './MultiplayerLobby';
 import { MultiplayerRoomWaiting } from './MultiplayerRoomWaiting';
 import { MultiplayerGameBoard } from './MultiplayerGameBoard';
@@ -24,9 +24,26 @@ export const MultiplayerView: React.FC<MultiplayerViewProps> = ({
     socketService.connect();
     const socket = socketService.getSocket();
 
-    const handleGameState = (state: MultiplayerGameState) => {
-      setGameState(state);
-      setCurrentRoomId(state.roomId);
+    const handleGameState = (incomingState: MultiplayerGameState) => {
+      if (!incomingState) return;
+      setGameState(prev => {
+        if (!prev || !incomingState) return incomingState;
+        const myProfile = getLocalUserProfile();
+        const myUserId = myProfile.userId;
+
+        if (incomingState.roomId === prev.roomId) {
+          const myNewPlayer = incomingState.players.find(p => p?.userId === myUserId);
+          const myPrevPlayer = prev.players.find(p => p?.userId === myUserId);
+
+          // If incoming state is masked (hand is undefined) while we previously had hand during playing state, preserve our hand
+          if (myNewPlayer && !myNewPlayer.hand && myPrevPlayer?.hand && incomingState.status === 'playing') {
+            myNewPlayer.hand = myPrevPlayer.hand;
+            myNewPlayer.lastDrawnTile = myPrevPlayer.lastDrawnTile;
+          }
+        }
+        return incomingState;
+      });
+      setCurrentRoomId(incomingState.roomId);
       setIsSyncing(false);
     };
 
@@ -35,15 +52,39 @@ export const MultiplayerView: React.FC<MultiplayerViewProps> = ({
     };
 
     socket.on('room:game_state', handleGameState);
-    socket.on('room:public_state', handleGameState);
     socket.on('room:chat_message', handleChatMessage);
 
     return () => {
       socket.off('room:game_state', handleGameState);
-      socket.off('room:public_state', handleGameState);
       socket.off('room:chat_message', handleChatMessage);
     };
   }, []);
+
+  // Background state polling sync (Every 2.5s) to guarantee zero-stall gameplay on volatile networks
+  useEffect(() => {
+    if (!currentRoomId || !gameState) return;
+
+    const interval = setInterval(() => {
+      socketService.syncRoom(currentRoomId, res => {
+        if (res.success && res.state) {
+          setGameState(prev => {
+            if (!prev) return res.state!;
+            const myProfile = getLocalUserProfile();
+            const myUserId = myProfile.userId;
+            const myNewPlayer = res.state!.players.find(p => p?.userId === myUserId);
+            const myPrevPlayer = prev.players.find(p => p?.userId === myUserId);
+            if (myNewPlayer && !myNewPlayer.hand && myPrevPlayer?.hand && res.state!.status === 'playing') {
+              myNewPlayer.hand = myPrevPlayer.hand;
+              myNewPlayer.lastDrawnTile = myPrevPlayer.lastDrawnTile;
+            }
+            return res.state!;
+          });
+        }
+      });
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [currentRoomId, Boolean(gameState)]);
 
   const handleJoinRoom = (roomId: string, initialState?: MultiplayerGameState) => {
     setCurrentRoomId(roomId);
