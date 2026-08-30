@@ -595,8 +595,16 @@ export class MahjongRoom {
     });
 
     if (activeSubmissions.length > 0) {
-      // Sort by priority descending
-      activeSubmissions.sort((a, b) => b.claim.priority - a.claim.priority);
+      const discarderIdx = this.lastDiscard ? this.lastDiscard.playerIndex : 0;
+      // Sort by priority descending; if priority ties (e.g. multiple Hu or Pung), sort by proximity to discarder (下家 > 对家 > 上家)
+      activeSubmissions.sort((a, b) => {
+        if (b.claim.priority !== a.claim.priority) {
+          return b.claim.priority - a.claim.priority;
+        }
+        const distA = (a.seatIdx - discarderIdx + 4) % 4;
+        const distB = (b.seatIdx - discarderIdx + 4) % 4;
+        return distA - distB;
+      });
       winningClaim = activeSubmissions[0];
     }
 

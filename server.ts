@@ -543,8 +543,8 @@ io.on('connection', socket => {
     }
   });
 
-  // Toggle Ready
-  socket.on('room:set_ready', (data: { roomId: string; userId: string; isReady: boolean }) => {
+  // Toggle Ready (with room:ready alias)
+  const handleSetReady = (data: { roomId: string; userId: string; isReady: boolean }) => {
     const room = roomManager.getRoom(data.roomId);
     if (room) {
       room.updatePlayerSocket(data.userId, socket.id);
@@ -552,7 +552,9 @@ io.on('connection', socket => {
       room.setReady(data.userId, data.isReady);
       room.broadcastState(io);
     }
-  });
+  };
+  socket.on('room:set_ready', handleSetReady);
+  socket.on('room:ready', handleSetReady);
 
   // Add Bot to a Seat
   socket.on('room:add_bot', (data: { roomId: string; seatIndex?: number }, callback) => {
@@ -602,8 +604,8 @@ io.on('connection', socket => {
     }
   });
 
-  // Host Start Game
-  socket.on('room:start_game', (data: { roomId: string; userId: string }, callback) => {
+  // Host Start Game (with room:start alias)
+  const handleStartGame = (data: { roomId: string; userId: string }, callback?: any) => {
     const room = roomManager.getRoom(data.roomId);
     if (!room) {
       if (callback) callback({ success: false, error: '房间不存在' });
@@ -624,7 +626,9 @@ io.on('connection', socket => {
         error: started ? undefined : '无法开启对局：请确保所有入座的真人玩家均已点击“准备”',
       });
     }
-  });
+  };
+  socket.on('room:start_game', handleStartGame);
+  socket.on('room:start', handleStartGame);
 
   // Player Discard Tile
   socket.on('room:discard', (data: { roomId: string; userId: string; tileId: string }) => {
@@ -636,18 +640,17 @@ io.on('connection', socket => {
     }
   });
 
-  // Player Claim Action (Eat/Pung/Clash/Kong/Hu/Pass)
-  socket.on(
-    'room:claim_action',
-    (data: { roomId: string; userId: string; claim: AvailableClaim | null }) => {
-      const room = roomManager.getRoom(data.roomId);
-      if (room) {
-        room.updatePlayerSocket(data.userId, socket.id);
-        socket.join(data.roomId);
-        room.submitClaimAction(io, data.userId, data.claim);
-      }
+  // Player Claim Action (Eat/Pung/Clash/Kong/Hu/Pass) (with room:claim alias)
+  const handleClaimAction = (data: { roomId: string; userId: string; claim: AvailableClaim | null }) => {
+    const room = roomManager.getRoom(data.roomId);
+    if (room) {
+      room.updatePlayerSocket(data.userId, socket.id);
+      socket.join(data.roomId);
+      room.submitClaimAction(io, data.userId, data.claim);
     }
-  );
+  };
+  socket.on('room:claim_action', handleClaimAction);
+  socket.on('room:claim', handleClaimAction);
 
   // Player Self-Draw Hu
   socket.on('room:self_draw_hu', (data: { roomId: string; userId: string }, callback) => {
