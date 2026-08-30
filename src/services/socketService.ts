@@ -694,6 +694,11 @@ class SocketService {
     }
   }
 
+  selfKong(roomId: string, tileName: string, callback?: (res: { success: boolean; error?: string }) => void): void {
+    const profile = getLocalUserProfile();
+    this.emitWithTimeout('room:self_kong', { roomId, userId: profile.userId, tileName }, callback, 5000);
+  }
+
   sendChat(roomId: string, text: string, type: 'text' | 'emoji' | 'shout' = 'text'): void {
     const profile = getLocalUserProfile();
     this.getSocket().emit('room:send_chat', {

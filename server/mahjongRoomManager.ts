@@ -142,6 +142,7 @@ export class MahjongRoom {
       const p = this.players[existingIndex]!;
       p.id = socketId;
       p.isConnected = true;
+      p.isBot = false; // Restore from bot custody if user returned
       p.name = name || p.name;
       p.avatar = avatar || p.avatar;
       return { success: true, seatIndex: existingIndex, message: '重新入座' };
@@ -153,9 +154,13 @@ export class MahjongRoom {
       return { success: true, message: '对局进行中，已进入观战席' };
     }
 
-    // Find first empty seat
-    const emptyIndex = this.players.findIndex(p => p === null);
-    if (emptyIndex === -1) {
+    // Find first empty seat or replace an AI bot in waiting mode
+    let targetIndex = this.players.findIndex(p => p === null);
+    if (targetIndex === -1 && this.status === 'waiting') {
+      targetIndex = this.players.findIndex(p => p !== null && p.isBot);
+    }
+
+    if (targetIndex === -1) {
       this.spectators.push({ socketId, userId, name });
       return { success: false, message: '房间座位已满，已转为观战' };
     }
@@ -166,12 +171,12 @@ export class MahjongRoom {
       this.hostUserId = userId;
     }
 
-    this.players[emptyIndex] = {
+    this.players[targetIndex] = {
       id: socketId,
       userId,
       name: name || `牌友_${userId.slice(0, 4)}`,
       avatar: avatar || '🀄',
-      seatIndex: emptyIndex,
+      seatIndex: targetIndex,
       isHost,
       isReady: isHost, // Host is ready by default
       isBot: false,
@@ -184,11 +189,11 @@ export class MahjongRoom {
       lastDrawnTile: null,
     };
 
-    return { success: true, seatIndex: emptyIndex };
+    return { success: true, seatIndex: targetIndex };
   }
 
   // Explicit player leave action
-  removePlayer(userId: string): boolean {
+  removePlayer(userId: string, io?: SocketIOServer): boolean {
     this.lastActiveAt = Date.now();
     const playerIdx = this.players.findIndex(p => p?.userId === userId);
     if (playerIdx === -1) {
@@ -198,13 +203,44 @@ export class MahjongRoom {
 
     const player = this.players[playerIdx]!;
     const wasHost = player.isHost;
-    this.players[playerIdx] = null;
+
+    if (this.status === 'playing') {
+      // In-game: convert to Bot so game flow continues smoothly
+      player.isBot = true;
+      player.isConnected = true;
+      player.name = `${player.name.replace(/\(托管\)$/, '')}(托管)`;
+      player.avatar = '🤖';
+
+      if (io) {
+        this.addSystemMessage(io, `牌友【${player.name}】离开牌桌，系统已启用 AI 智能替打托管。`);
+        if (this.currentTurn === playerIdx) {
+          this.scheduleBotTurn(io);
+        }
+        if (this.pendingClaimsMap.has(playerIdx)) {
+          this.handleBotClaimDecision(io, playerIdx, this.pendingClaimsMap.get(playerIdx)!);
+        }
+      }
+
+      // If all human players have left during play, safely end the round
+      const hasAnyHuman = this.players.some(p => p !== null && !p.isBot);
+      if (!hasAnyHuman && io) {
+        this.addSystemMessage(io, `所有真人玩家已离开，牌局结束。`);
+        this.triggerRoundEnd(io, null);
+      }
+    } else {
+      this.players[playerIdx] = null;
+    }
 
     if (wasHost) {
       const nextHuman = this.players.find(p => p !== null && !p.isBot);
       if (nextHuman) {
         nextHuman.isHost = true;
         this.hostUserId = nextHuman.userId;
+        if (io) {
+          this.addSystemMessage(io, `👑 【${nextHuman.name}】 已成为新房主！`);
+        }
+      } else {
+        this.hostUserId = '';
       }
     }
     return true;
@@ -381,6 +417,8 @@ export class MahjongRoom {
   // Handle a player's discard
   playerDiscard(io: SocketIOServer, userId: string, tileId: string): boolean {
     if (this.status !== 'playing') return false;
+    // Guard against discarding during active claim window
+    if (this.pendingClaimsMap.size > 0) return false;
 
     const player = this.players[this.currentTurn];
     if (!player || player.userId !== userId) return false;
@@ -778,6 +816,59 @@ export class MahjongRoom {
     }
   }
 
+  // Player Self Kong (Concealed Kong 暗杠 or Add-on Kong 加杠)
+  playerSelfKong(io: SocketIOServer, userId: string, tileName: string): { success: boolean; error?: string } {
+    if (this.status !== 'playing') return { success: false, error: '非对局中' };
+
+    const player = this.players[this.currentTurn];
+    if (!player || player.userId !== userId) return { success: false, error: '非当前出牌回合' };
+
+    // 1. Check Concealed Kong (4 identical tiles in hand)
+    const matchingInHand = player.hand.filter(t => t.name === tileName);
+    if (matchingInHand.length === 4) {
+      // Remove all 4 from hand
+      const usedIds = new Set(matchingInHand.map(t => t.id));
+      player.hand = player.hand.filter(t => !usedIds.has(t.id));
+      player.handCount = player.hand.length;
+
+      const meld: Meld = {
+        type: 'kong',
+        typeLabel: '暗杠',
+        tiles: matchingInHand,
+        sourcePlayerIndex: this.currentTurn,
+      };
+      player.melds.push(meld);
+
+      this.addSystemMessage(io, `🀄【${player.name}】 宣告了 【暗杠 · ${tileName}】！`);
+      this.drawKongTile(io, this.currentTurn);
+      return { success: true };
+    }
+
+    // 2. Check Add-on Kong (1 tile in hand matching an existing exposed triplet meld)
+    const matchingHandTile = player.hand.find(t => t.name === tileName);
+    const existingTriplet = player.melds.find(
+      m => (m.type === 'triplet' || m.typeLabel?.includes('碰')) && m.tiles.length === 3 && m.tiles[0].name === tileName
+    );
+
+    if (matchingHandTile && existingTriplet) {
+      // Remove tile from hand
+      const idx = player.hand.findIndex(t => t.id === matchingHandTile.id);
+      if (idx !== -1) player.hand.splice(idx, 1);
+      player.handCount = player.hand.length;
+
+      // Upgrade triplet to kong
+      existingTriplet.type = 'kong';
+      existingTriplet.typeLabel = '加杠';
+      existingTriplet.tiles.push(matchingHandTile);
+
+      this.addSystemMessage(io, `🀄【${player.name}】 宣告了 【加杠 · ${tileName}】！`);
+      this.drawKongTile(io, this.currentTurn);
+      return { success: true };
+    }
+
+    return { success: false, error: '未满足暗杠或加杠牌型条件' };
+  }
+
   // Player Self-Draw Hu (自摸胡牌)
   playerSelfDrawHu(io: SocketIOServer, userId: string): boolean {
     if (this.status !== 'playing') return false;
@@ -865,6 +956,7 @@ export class MahjongRoom {
     this.turnDeadline = Date.now() + limitMs;
 
     this.turnTimer = setTimeout(() => {
+      if (this.status !== 'playing') return;
       // Auto discard last drawn tile or first tile if turn times out
       const player = this.players[this.currentTurn];
       if (player && player.hand && player.hand.length > 0) {
@@ -1064,7 +1156,10 @@ export class MahjongRoomManager {
 
   findQuickMatch(): MahjongRoom | undefined {
     return Array.from(this.rooms.values()).find(
-      r => r.status === 'waiting' && !r.settings.isPrivate && r.players.some(p => p === null)
+      r =>
+        r.status === 'waiting' &&
+        !r.settings.isPrivate &&
+        (r.players.some(p => p === null) || r.players.some(p => p !== null && p.isBot))
     );
   }
 

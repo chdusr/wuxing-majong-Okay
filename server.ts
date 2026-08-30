@@ -530,7 +530,7 @@ io.on('connection', socket => {
     try {
       const room = roomManager.getRoom(data.roomId);
       if (room) {
-        room.removePlayer(data.userId);
+        room.removePlayer(data.userId, io);
         socket.leave(data.roomId);
         room.broadcastState(io);
         roomManager.cleanupEmptyRooms();
@@ -659,9 +659,26 @@ io.on('connection', socket => {
       room.updatePlayerSocket(data.userId, socket.id);
       socket.join(data.roomId);
       const success = room.playerSelfDrawHu(io, data.userId);
-      if (callback) callback({ success });
+      if (callback) callback({ success, error: success ? undefined : '自摸胡牌未达成番型或牌型不符' });
+    } else {
+      if (callback) callback({ success: false, error: '房间不存在' });
     }
   });
+
+  // Player Self Kong (Concealed Kong 暗杠 or Add-on Kong 加杠)
+  const handleSelfKong = (data: { roomId: string; userId: string; tileName: string }, callback?: any) => {
+    const room = roomManager.getRoom(data.roomId);
+    if (room) {
+      room.updatePlayerSocket(data.userId, socket.id);
+      socket.join(data.roomId);
+      const result = room.playerSelfKong(io, data.userId, data.tileName);
+      if (callback) callback(result);
+    } else {
+      if (callback) callback({ success: false, error: '房间不存在' });
+    }
+  };
+  socket.on('room:self_kong', handleSelfKong);
+  socket.on('room:kong', handleSelfKong);
 
   // In-Game Chat / Quick Shouts
   socket.on(
