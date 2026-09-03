@@ -41,6 +41,7 @@ import {
   normalizeServerAddress,
   DEFAULT_CLOUD_RELAY_URL,
   resetToDefaultRelay,
+  resetServerUrl,
   CarrierSpeedTestResult,
 } from '../../services/socketService';
 
@@ -99,8 +100,8 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
     setIpProtocol(parsed.protocol);
     setIpHost(parsed.host);
     setIpPort(parsed.port || '3000');
-    // If it's an IP/hostname (e.g. 1.2.3.4 or localhost) or empty, default to ipPort tab
-    if (!current || !current.includes('.run.app')) {
+    // If empty or custom domain / localhost, keep active
+    if (current && !current.includes('.run.app') && !current.startsWith('http')) {
       setConfigTab('ipPort');
     } else {
       setConfigTab('fullUrl');
@@ -232,11 +233,25 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
     }, 500);
   };
 
+  // Restore same-origin default
+  const handleResetToSameOrigin = () => {
+    resetServerUrl();
+    setServerUrlInput('');
+    setIpHost('');
+    setErrorMsg('');
+    setNoticeBanner('已恢复为本站同域默认服务！正在重新同步房间列表...');
+    setTimeout(() => {
+      fetchRooms(true);
+      setTimeout(() => setNoticeBanner(''), 4000);
+    }, 400);
+  };
+
   // Restore official cloud relay
   const handleResetToDefaultRelay = () => {
     resetToDefaultRelay();
+    setServerUrlInput(DEFAULT_CLOUD_RELAY_URL);
     setErrorMsg('');
-    setNoticeBanner('已成功恢复为官方云端对战中继！正在重新同步房间列表...');
+    setNoticeBanner('已切换为官方云端对战中继！正在重新同步房间列表...');
     setTimeout(() => {
       fetchRooms(true);
       setTimeout(() => setNoticeBanner(''), 4000);
@@ -1096,15 +1111,18 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
                         }}
                         className={`p-2.5 rounded-xl border text-left transition-all ${
                           serverUrlInput === ''
-                            ? 'bg-purple-900/60 border-amber-400/80 text-amber-300'
+                            ? 'bg-purple-900/60 border-amber-400/80 text-amber-300 ring-1 ring-amber-400/50'
                             : 'bg-black/40 border-white/10 text-slate-300 hover:bg-white/5'
                         }`}
                       >
-                        <div className="font-bold text-xs flex items-center gap-1.5">
+                        <div className="font-bold text-xs flex items-center justify-between">
                           <span>🚀 本站同域 (标准部署)</span>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-normal border border-emerald-400/30">
+                            默认推荐
+                          </span>
                         </div>
                         <div className="text-[10px] text-slate-400 mt-0.5">
-                          适用于全栈容器直接运行
+                          直接连接当前站点后端服务（生产/容器环境）
                         </div>
                       </button>
 
@@ -1120,7 +1138,7 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
                         }}
                         className={`p-2.5 rounded-xl border text-left transition-all ${
                           serverUrlInput === DEFAULT_CLOUD_RELAY_URL
-                            ? 'bg-purple-900/60 border-amber-400/80 text-amber-300'
+                            ? 'bg-purple-900/60 border-amber-400/80 text-amber-300 ring-1 ring-amber-400/50'
                             : 'bg-black/40 border-white/10 text-slate-300 hover:bg-white/5'
                         }`}
                       >
@@ -1128,7 +1146,7 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
                           <span>🌐 官方云端对战中继</span>
                         </div>
                         <div className="text-[10px] text-slate-400 mt-0.5">
-                          EdgeOne Makers 部署推荐
+                          EdgeOne Makers 静态托管备用
                         </div>
                       </button>
                     </div>
@@ -1259,13 +1277,13 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    handleResetToDefaultRelay();
+                    handleResetToSameOrigin();
                     setIsServerSettingsOpen(false);
                   }}
-                  className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl bg-purple-900/70 hover:bg-purple-800 border border-purple-400/40 text-amber-300 text-xs font-bold transition-all flex items-center justify-center gap-1.5 shrink-0"
+                  className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl bg-purple-900/70 hover:bg-purple-800 border border-purple-400/40 text-emerald-300 text-xs font-bold transition-all flex items-center justify-center gap-1.5 shrink-0"
                 >
-                  <Zap className="w-3.5 h-3.5 fill-current" />
-                  <span>恢复官方云端中继</span>
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>恢复本站同域默认</span>
                 </button>
                 <div className="flex-1 w-full flex items-center gap-2">
                   <button

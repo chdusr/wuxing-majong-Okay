@@ -1216,11 +1216,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           <div className="flex flex-wrap items-end justify-center gap-2 sm:gap-4 max-w-full pb-2 px-1">
             
             {/* Standing Hand Tiles (Grouped View or Continuous View) */}
-            <div className="flex items-end justify-center gap-1 sm:gap-1.5 overflow-x-auto max-w-full py-1">
+            <div className="flex flex-wrap items-end justify-center gap-1 sm:gap-1.5 max-w-full py-1">
               {handGroups.map((group, gIdx) => (
                 <div
                   key={gIdx}
-                  className={`flex items-end gap-1 sm:gap-1.5 ${
+                  className={`flex flex-wrap items-end justify-center gap-1 sm:gap-1.5 ${
                     isGroupedView
                       ? 'p-1.5 rounded-2xl bg-black/40 border border-purple-500/30 relative'
                       : ''
@@ -1298,12 +1298,12 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
             {/* Declared Melds (副露：碰/吃/冲战碰) Row */}
             {humanPlayer.melds.length > 0 && (
-              <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-black/60 border border-amber-500/40 shadow-inner">
+              <div className="flex flex-wrap items-center justify-center gap-2 p-1.5 rounded-2xl bg-black/60 border border-amber-500/40 shadow-inner">
                 <div className="flex flex-col items-center justify-center px-1">
                   <span className="text-[10px] text-amber-300 font-bold">已亮</span>
                   <span className="text-[9px] text-purple-300">砍牌</span>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
                   {humanPlayer.melds.map((m, mi) => (
                     <div key={mi} className="flex items-center gap-0.5 bg-[#22153B] p-1 rounded-xl border border-purple-500/50 shadow-md">
                       <span className="text-[9px] text-amber-300 font-bold -rotate-90 mr-0.5 whitespace-nowrap">

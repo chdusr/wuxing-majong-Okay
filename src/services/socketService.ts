@@ -128,22 +128,6 @@ export function normalizeServerAddress(raw: string, defaultProtocol?: 'http' | '
   return `${proto}://${trimmed}`.replace(/\/+$/, '');
 }
 
-export function isEdgeOneOrExternalStaticHost(): boolean {
-  if (typeof window === 'undefined') return false;
-  const host = window.location.hostname.toLowerCase();
-  if (
-    host === 'localhost' ||
-    host === '127.0.0.1' ||
-    host.endsWith('.run.app') ||
-    host.includes('googleusercontent.com') ||
-    host.includes('aistudio') ||
-    host.includes('webcontainer')
-  ) {
-    return false;
-  }
-  return true;
-}
-
 export function getServerUrl(): string {
   try {
     const saved = localStorage.getItem(STORAGE_KEY_SERVER_URL);
@@ -164,10 +148,7 @@ export function getServerUrl(): string {
   } catch (e) {
     // ignore
   }
-  // If deployed on EdgeOne Makers (formerly Pages), or external static CDN, auto-default to Cloud Relay
-  if (isEdgeOneOrExternalStaticHost()) {
-    return DEFAULT_CLOUD_RELAY_URL;
-  }
+  // Default to empty string: same-origin (本站同域 · 标准部署)
   return '';
 }
 
@@ -322,10 +303,6 @@ class SocketService {
     s.on('connect_error', () => {
       this.isConnecting = false;
       this.consecutiveErrors++;
-      const currentUrl = getServerUrl();
-      if (!currentUrl && isEdgeOneOrExternalStaticHost()) {
-        this.reconnectWithServerUrl(DEFAULT_CLOUD_RELAY_URL);
-      }
     });
 
     s.on('disconnect', () => {
