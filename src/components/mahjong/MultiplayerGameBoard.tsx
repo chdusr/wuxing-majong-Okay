@@ -824,6 +824,7 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
             <DiscardArena
               players={arenaPlayers}
               currentTurnIndex={currentArenaTurnIdx}
+              hideToolbar={true}
               lastDiscard={
                 gameState.lastDiscard
                   ? {

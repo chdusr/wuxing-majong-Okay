@@ -42,6 +42,7 @@ export interface DiscardArenaProps {
   onConfirmDiscard?: (tile: MahjongTileData) => void;
   onCancelSelect?: () => void;
   countdown?: number;
+  hideToolbar?: boolean;
   className?: string;
 }
 
@@ -78,6 +79,7 @@ export const DiscardArena: React.FC<DiscardArenaProps> = ({
   onConfirmDiscard,
   onCancelSelect,
   countdown,
+  hideToolbar = false,
   className = '',
 }) => {
   const [activeElementFilter, setActiveElementFilter] = useState<ElementType | 'all'>('all');
@@ -125,7 +127,8 @@ export const DiscardArena: React.FC<DiscardArenaProps> = ({
       {/* =========================================================================
           TOP COMPACT TOOLBAR: View Mode Tabs & Five-Element Quick Filters
           ========================================================================= */}
-      <div className="w-full flex flex-wrap items-center justify-between gap-1.5 px-2 py-1 mb-1.5 bg-[#0D0818]/90 backdrop-blur-md rounded-2xl border border-purple-500/20 shadow-sm z-20">
+      {!hideToolbar && (
+        <div className="w-full flex flex-wrap items-center justify-between gap-1.5 px-2 py-1 mb-1.5 bg-[#0D0818]/90 backdrop-blur-md rounded-2xl border border-purple-500/20 shadow-sm z-20">
         
         {/* Left: View Mode Switcher (整合 / 四方堂池 / 五行分类 / 八卦罗盘) */}
         <div className="flex items-center gap-1 bg-black/40 p-0.5 rounded-xl border border-white/5">
@@ -213,8 +216,8 @@ export const DiscardArena: React.FC<DiscardArenaProps> = ({
             );
           })}
         </div>
-
       </div>
+      )}
 
       {/* =========================================================================
           MAIN 3D RECESSED ARENA MAT (方案九：全景沉浸阶梯下沉式 3D 景深悬浮台)
