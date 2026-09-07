@@ -36,6 +36,7 @@ import {
   triggerHaptic,
 } from '../../utils/soundEffects';
 import { MahjongTile } from './MahjongTile';
+import { DiscardArena, DiscardArenaPlayerInfo } from './DiscardArena';
 import { ClaimDialog } from './ClaimDialog';
 import { HuCelebrationModal } from './HuCelebrationModal';
 import { DrawSettlementModal } from './DrawSettlementModal';
@@ -246,6 +247,22 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
       { relativePos: 'left', seatIdx: (mySeatIndex + 3) % 4, player: gameState.players[(mySeatIndex + 3) % 4] },
     ];
   }, [gameState.players, mySeatIndex]);
+
+  const arenaPlayers: DiscardArenaPlayerInfo[] = useMemo(() => {
+    return relativePlayers.map((rp, idx) => ({
+      name: rp.player?.name || `玩家${idx + 1}`,
+      avatar: rp.player?.avatar || '👤',
+      seatName: SEAT_NAMES[rp.seatIdx] || '风',
+      isDealer: gameState.dealerIndex === rp.seatIdx,
+      discards: rp.player?.discards || [],
+      isCurrentTurn: gameState.currentTurn === rp.seatIdx,
+    }));
+  }, [relativePlayers, gameState.dealerIndex, gameState.currentTurn]);
+
+  const currentArenaTurnIdx = useMemo(() => {
+    const found = relativePlayers.findIndex(rp => rp.seatIdx === gameState.currentTurn);
+    return found >= 0 ? found : 0;
+  }, [relativePlayers, gameState.currentTurn]);
 
   // Check if I can claim the last discarded card
   const myPendingClaims = useMemo(() => {
@@ -802,51 +819,25 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
             })()}
           </div>
 
-          {/* Table Center: Shared Pool Discards & Active Turn Dial */}
-          <div className="col-span-6 flex flex-col items-center justify-center p-2 bg-[#120822]/85 border border-purple-500/30 rounded-3xl min-h-[190px] relative shadow-inner">
-            
-            {/* Center Directional Compass Dial */}
-            <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-0.5 rounded-lg bg-black/50 border border-purple-500/30 text-[10px]">
-              <span className="text-amber-300 font-bold">{SEAT_NAMES[gameState.currentTurn]}</span>
-              <span className="text-slate-400">出牌中</span>
-              <div className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-            </div>
-
-            {/* Countdown Badge */}
-            {countdown > 0 && (
-              <div className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-950/80 border border-amber-500/40 text-amber-300 font-mono text-[11px] font-bold">
-                <Clock className="w-3 h-3" />
-                <span>{countdown}s</span>
-              </div>
-            )}
-
-            {/* Last Discarded Tile Highlight */}
-            {gameState.lastDiscard ? (
-              <div className="flex flex-col items-center animate-in zoom-in-90 duration-200 my-auto">
-                <span className="text-[11px] text-amber-300 font-bold mb-1 flex items-center gap-1">
-                  <span>【{gameState.players[gameState.lastDiscard.playerIndex]?.name}】打出：</span>
-                </span>
-                <div className="ring-4 ring-amber-400/70 rounded-xl shadow-xl transform scale-110">
-                  <MahjongTile tile={gameState.lastDiscard.tile} size="md" />
-                </div>
-              </div>
-            ) : (
-              <div className="my-auto text-center space-y-1">
-                <div className="text-2xl">☯️</div>
-                <div className="text-xs font-bold text-purple-300">五行生克 轮转不息</div>
-                <div className="text-[10px] text-slate-500">等待当前道友行牌...</div>
-              </div>
-            )}
-
-            {/* Global Discards Pool (全台弃牌池) */}
-            <div className="w-full flex flex-wrap gap-1 justify-center max-h-24 overflow-y-auto mt-2 pt-1 border-t border-white/5">
-              {gameState.players.flatMap(p => p?.discards || []).slice(-14).map((t, idx, arr) => (
-                <div key={idx} className={`scale-75 origin-center ${idx === arr.length - 1 ? 'opacity-100 ring-1 ring-amber-400' : 'opacity-85'}`}>
-                  <MahjongTile tile={t} size="sm" />
-                </div>
-              ))}
-            </div>
-
+          {/* Table Center: Integrated Discard Arena (方案整合：四方堂池 + 聚光灯 + 五行分类 + 八卦罗盘 + 近场槽 + 3D悬浮) */}
+          <div className="col-span-6 flex flex-col items-center justify-center p-1 sm:p-2 bg-[#120822]/85 border border-purple-500/30 rounded-3xl min-h-[190px] relative shadow-inner">
+            <DiscardArena
+              players={arenaPlayers}
+              currentTurnIndex={currentArenaTurnIdx}
+              lastDiscard={
+                gameState.lastDiscard
+                  ? {
+                      playerIndex: relativePlayers.findIndex(rp => rp.seatIdx === gameState.lastDiscard?.playerIndex),
+                      tile: gameState.lastDiscard.tile,
+                    }
+                  : null
+              }
+              selectedTileForDiscard={myPlayer?.hand.find(t => t.id === selectedTileId) || null}
+              isMyTurn={isMyTurn}
+              countdown={countdown}
+              onConfirmDiscard={(tile) => executeDiscard(tile.id)}
+              onCancelSelect={() => setSelectedTileId(null)}
+            />
           </div>
 
           {/* Right Player (下家) */}

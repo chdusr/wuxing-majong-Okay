@@ -31,6 +31,7 @@ import {
   triggerHaptic,
 } from '../../utils/soundEffects';
 import { MahjongTile } from './MahjongTile';
+import { DiscardArena, DiscardArenaPlayerInfo } from './DiscardArena';
 import { ClaimDialog } from './ClaimDialog';
 import { HuCelebrationModal } from './HuCelebrationModal';
 import { DrawSettlementModal } from './DrawSettlementModal';
@@ -131,6 +132,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   const [diceValues, setDiceValues] = useState<[number, number]>([3, 2]);
   const [isRollingDice, setIsRollingDice] = useState<boolean>(false);
   const [diceText, setDiceText] = useState<string>('');
+  const [lastDiscard, setLastDiscard] = useState<{ playerIndex: number; tile: MahjongTileData } | null>(null);
 
   // Selected tile in human hand
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
@@ -210,6 +212,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     setSelectedTileId(null);
     setAuditClaimTile(null);
     setAuditClaimDiscarderIdx(undefined);
+    setLastDiscard(null);
     setIsRollingDice(true);
     playDiceRollSound();
 
@@ -467,6 +470,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         })
       );
 
+      setLastDiscard({ playerIndex: aiIndex, tile: discarded });
       addLog(`${aiPlayer.name} 打出了【${discarded.name}】`);
 
       // Check claims for other players (especially human)
@@ -584,6 +588,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       })
     );
 
+    setLastDiscard({ playerIndex: 0, tile });
     addLog(`你打出了【${tile.name}】`);
 
     // Check if any AI can Hu on this discard (捉炮)
@@ -891,6 +896,41 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
   const remainingTilesCount = deck.length - wallIndex;
 
+  const arenaPlayers: DiscardArenaPlayerInfo[] = [
+    {
+      name: players[0].name,
+      avatar: players[0].avatar,
+      seatName: '南风',
+      isDealer: players[0].isDealer,
+      discards: players[0].discards,
+      isCurrentTurn: currentTurn === 0,
+    },
+    {
+      name: players[1].name,
+      avatar: players[1].avatar,
+      seatName: '西风',
+      isDealer: players[1].isDealer,
+      discards: players[1].discards,
+      isCurrentTurn: currentTurn === 1,
+    },
+    {
+      name: players[2].name,
+      avatar: players[2].avatar,
+      seatName: '北风',
+      isDealer: players[2].isDealer,
+      discards: players[2].discards,
+      isCurrentTurn: currentTurn === 2,
+    },
+    {
+      name: players[3].name,
+      avatar: players[3].avatar,
+      seatName: '东风',
+      isDealer: players[3].isDealer,
+      discards: players[3].discards,
+      isCurrentTurn: currentTurn === 3,
+    },
+  ];
+
   return (
     <div className="relative w-full min-h-[85vh] flex flex-col items-center justify-between p-2 sm:p-4 select-none">
       
@@ -1026,8 +1066,8 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             )}
           </div>
 
-          {/* Center Table: Dice Box, Discards Pool, Game Status */}
-          <div className="flex-1 max-w-md h-full flex flex-col items-center justify-center p-2 rounded-3xl bg-[#071C15]/70 border border-emerald-500/20 backdrop-blur-sm shadow-inner min-h-[140px]">
+          {/* Center Table: Dice Box & Integrated Discard Arena (方案整合：四方堂池 + 聚光灯 + 五行分类 + 八卦罗盘 + 近场槽 + 3D悬浮) */}
+          <div className="flex-1 max-w-xl h-full flex flex-col items-center justify-center p-1 sm:p-2 rounded-3xl bg-[#071C15]/70 border border-emerald-500/20 backdrop-blur-sm shadow-inner min-h-[160px]">
             
             {/* Seating / Dice Roll Phase */}
             {gamePhase === 'seat_selection' || gamePhase === 'dice_roll' ? (
@@ -1051,39 +1091,16 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 </button>
               </div>
             ) : (
-              /* Discard Pool (牌河) */
-              <div className="w-full flex flex-col items-center">
-                <div className="text-[10px] text-emerald-400/80 font-bold mb-1 flex items-center justify-between w-full px-2">
-                  <span>公共牌池 (逆时针出牌)</span>
-                  <span className="text-slate-400">最新出牌高亮</span>
-                </div>
-
-                {/* Discard tiles grid */}
-                <div className="flex flex-wrap items-center justify-center gap-1 max-h-32 overflow-y-auto p-1 bg-black/20 rounded-xl w-full">
-                  {players.flatMap(p => p.discards).length === 0 ? (
-                    <div className="text-xs text-slate-500 py-3">等待首张出牌...</div>
-                  ) : (
-                    players.flatMap(p => p.discards).map((t, idx, arr) => (
-                      <MahjongTile
-                        key={idx}
-                        tile={t}
-                        size="xs"
-                        isHighlighted={idx === arr.length - 1}
-                      />
-                    ))
-                  )}
-                </div>
-
-                {/* Center Dice Display */}
-                <div className="mt-1 flex items-center gap-3 text-xs text-amber-300 font-mono">
-                  <span className="flex items-center gap-1 bg-black/40 px-2 py-0.5 rounded-lg border border-amber-500/30">
-                    🎲 骰点: [{diceValues[0]}, {diceValues[1]}]
-                  </span>
-                  <span className="text-slate-300 text-[11px] truncate max-w-[180px]">
-                    {gameLogs[0]}
-                  </span>
-                </div>
-              </div>
+              <DiscardArena
+                players={arenaPlayers}
+                currentTurnIndex={currentTurn}
+                lastDiscard={lastDiscard}
+                diceValues={diceValues}
+                selectedTileForDiscard={humanPlayer.hand.find(t => t.id === selectedTileId) || null}
+                isMyTurn={currentTurn === 0 && gamePhase === 'playing'}
+                onConfirmDiscard={(tile) => handleHumanDiscard(tile)}
+                onCancelSelect={() => setSelectedTileId(null)}
+              />
             )}
 
           </div>
