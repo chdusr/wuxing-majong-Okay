@@ -37,6 +37,7 @@ import { HuCelebrationModal } from './HuCelebrationModal';
 import { DrawSettlementModal } from './DrawSettlementModal';
 import { HandOrganizerModal } from './HandOrganizerModal';
 import { HuAuditModal } from './HuAuditModal';
+import { DiscardConfirmModal } from './DiscardConfirmModal';
 import { HuAuditReport } from '../../utils/mahjongRules';
 import {
   Dices,
@@ -256,7 +257,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           ...p,
           melds: [],
           discards: [],
-          hand: idx === 0 ? pHands[idx] : sortHand(pHands[idx]),
+          hand: idx === 0 ? getSmartOrganizedHand(pHands[idx], 0) : sortHand(pHands[idx]),
           lastDrawnTile: idx === 0 ? pHands[idx][pHands[idx].length - 1] : null,
         }))
       );
@@ -385,7 +386,10 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     setPlayers(prev =>
       prev.map((p, idx) => {
         if (idx === nextPlayerIndex) {
-          const newHand = [...p.hand, drawnTile];
+          const rawHand = [...p.hand, drawnTile];
+          const newHand = idx === 0
+            ? getSmartOrganizedHand(rawHand, p.melds.length)
+            : rawHand;
           return {
             ...p,
             hand: newHand,
@@ -997,34 +1001,34 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       </div>
 
       {/* Main Mahjong Mat (Mahjong Table) */}
-      <div className="relative w-full max-w-4xl min-h-[600px] bg-gradient-to-b from-[#0F362A] via-[#09261D] to-[#051712] border-4 border-[#241C15] rounded-[2.5rem] shadow-[inset_0_4px_30px_rgba(0,0,0,0.8),0_20px_50px_rgba(0,0,0,0.6)] flex flex-col justify-between p-3 sm:p-5 gap-3">
+      <div className="relative w-full max-w-4xl min-h-[380px] sm:min-h-[500px] md:min-h-[580px] bg-gradient-to-b from-[#0F362A] via-[#09261D] to-[#051712] border-4 border-[#241C15] rounded-3xl sm:rounded-[2.5rem] shadow-[inset_0_4px_30px_rgba(0,0,0,0.8),0_20px_50px_rgba(0,0,0,0.6)] flex flex-col justify-between p-1.5 sm:p-4 md:p-5 gap-1.5 sm:gap-3 overflow-hidden min-w-0 max-w-full">
         
         {/* Table Felt Subtle Pattern */}
-        <div className="absolute inset-0 bg-[radial-gradient(#155E4B_1px,transparent_1px)] [background-size:16px_16px] opacity-25 pointer-events-none rounded-[2.5rem]" />
+        <div className="absolute inset-0 bg-[radial-gradient(#155E4B_1px,transparent_1px)] [background-size:16px_16px] opacity-25 pointer-events-none rounded-3xl sm:rounded-[2.5rem]" />
 
         {/* 1. Opposite Player (North / 对家) */}
-        <div className="w-full flex flex-col items-center z-10">
-          <div className="flex items-center gap-2 mb-1 px-3 py-1 rounded-full bg-black/40 border border-white/10 backdrop-blur-sm">
-            <span className="text-sm">{players[2].avatar}</span>
-            <span className="text-xs text-slate-300 font-semibold">{players[2].name}</span>
-            {players[2].isDealer && <Crown className="w-3.5 h-3.5 text-amber-400" />}
+        <div className="w-full flex flex-col items-center z-10 min-w-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 mb-1 px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full bg-black/40 border border-white/10 backdrop-blur-sm">
+            <span className="text-xs sm:text-sm">{players[2].avatar}</span>
+            <span className="text-[11px] sm:text-xs text-slate-300 font-semibold">{players[2].name}</span>
+            {players[2].isDealer && <Crown className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-amber-400" />}
             {currentTurn === 2 && (
-              <span className="text-[10px] bg-amber-500 text-black font-black px-1.5 py-0.2 rounded-full animate-pulse">
+              <span className="text-[9px] sm:text-[10px] bg-amber-500 text-black font-black px-1.5 py-0.2 rounded-full animate-pulse">
                 思考中
               </span>
             )}
           </div>
           {/* Opponent face-down hand & melds */}
-          <div className="flex flex-wrap items-center justify-center gap-2">
+          <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-2 max-w-full">
             <div className="flex items-center gap-0.5">
               {players[2].hand.map((_, idx) => (
                 <MahjongTile key={idx} size="xs" isFaceDown />
               ))}
             </div>
             {players[2].melds.length > 0 && (
-              <div className="flex items-center gap-1 bg-black/50 p-1 rounded-xl border border-white/10">
+              <div className="flex items-center gap-1 bg-black/50 p-0.5 sm:p-1 rounded-xl border border-white/10">
                 {players[2].melds.map((m, mi) => (
-                  <div key={mi} className="flex items-center gap-0.5 bg-purple-950/60 p-0.5 rounded-lg border border-purple-600/30">
+                  <div key={mi} className="flex items-center gap-0.5 bg-purple-950/60 p-0.5 rounded-lg border border-purple-600/30 scale-75 sm:scale-90">
                     <span className="text-[8px] text-amber-300 -rotate-90">{m.typeLabel}</span>
                     {m.tiles.map((t, ti) => (
                       <MahjongTile key={ti} tile={t} size="xs" />
@@ -1037,26 +1041,28 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         </div>
 
         {/* 2. Middle Row: Left Player, Center Table (Dice/Discards), Right Player */}
-        <div className="w-full flex items-center justify-between gap-2 z-10">
+        <div className="w-full flex items-center justify-between gap-0.5 sm:gap-2 z-10 min-w-0 max-w-full">
           
           {/* Left Player (East / 上家) */}
-          <div className="flex flex-col items-start gap-1">
-            <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-black/40 border border-white/10 text-xs text-slate-300">
+          <div className="flex-shrink-0 flex flex-col items-start gap-0.5 sm:gap-1 max-w-[36px] sm:max-w-none min-w-0">
+            <div className="flex items-center gap-0.5 sm:gap-1 px-1 sm:px-2.5 py-0.5 rounded-full bg-black/40 border border-white/10 text-[9px] sm:text-xs text-slate-300 truncate max-w-full">
               <span>{players[3].avatar}</span>
-              <span className="text-[11px]">{players[3].name.slice(0, 6)}</span>
+              <span className="text-[9px] sm:text-[11px] truncate max-w-[20px] sm:max-w-[60px]">{players[3].name}</span>
               {currentTurn === 3 && (
-                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-400 animate-ping flex-shrink-0" />
               )}
             </div>
-            <div className="flex flex-col gap-0.5">
-              {players[3].hand.slice(0, 10).map((_, idx) => (
-                <MahjongTile key={idx} size="xs" isFaceDown isRotated />
+            <div className="flex flex-col gap-0.5 items-center">
+              {players[3].hand.slice(0, 8).map((_, idx) => (
+                <div key={idx} className="scale-75 sm:scale-100 origin-left">
+                  <MahjongTile size="xs" isFaceDown isRotated />
+                </div>
               ))}
             </div>
             {players[3].melds.length > 0 && (
-              <div className="flex flex-col gap-1 bg-black/40 p-1 rounded-lg border border-white/10 mt-1">
+              <div className="flex flex-col gap-1 bg-black/40 p-0.5 sm:p-1 rounded-lg border border-white/10 mt-0.5">
                 {players[3].melds.map((m, mi) => (
-                  <div key={mi} className="flex items-center gap-0.5">
+                  <div key={mi} className="flex items-center gap-0.5 scale-75 sm:scale-90">
                     {m.tiles.map((t, ti) => (
                       <MahjongTile key={ti} tile={t} size="xs" />
                     ))}
@@ -1067,7 +1073,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           </div>
 
           {/* Center Table: Dice Box & Integrated Discard Arena (方案整合：四方堂池 + 聚光灯 + 五行分类 + 八卦罗盘 + 近场槽 + 3D悬浮) */}
-          <div className="flex-1 max-w-xl h-full flex flex-col items-center justify-center p-1 sm:p-2 rounded-3xl bg-[#071C15]/70 border border-emerald-500/20 backdrop-blur-sm shadow-inner min-h-[160px]">
+          <div className="flex-1 min-w-0 max-w-xl h-full flex flex-col items-center justify-center p-0.5 sm:p-2 rounded-2xl sm:rounded-3xl bg-[#071C15]/70 border border-emerald-500/20 backdrop-blur-sm shadow-inner min-h-[130px] sm:min-h-[160px] overflow-hidden">
             
             {/* Seating / Dice Roll Phase */}
             {gamePhase === 'seat_selection' || gamePhase === 'dice_roll' ? (
@@ -1096,7 +1102,6 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 currentTurnIndex={currentTurn}
                 lastDiscard={lastDiscard}
                 diceValues={diceValues}
-                selectedTileForDiscard={humanPlayer.hand.find(t => t.id === selectedTileId) || null}
                 isMyTurn={currentTurn === 0 && gamePhase === 'playing'}
                 onConfirmDiscard={(tile) => handleHumanDiscard(tile)}
                 onCancelSelect={() => setSelectedTileId(null)}
@@ -1106,23 +1111,25 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           </div>
 
           {/* Right Player (West / 下家) */}
-          <div className="flex flex-col items-end gap-1">
-            <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-black/40 border border-white/10 text-xs text-slate-300">
-              <span className="text-[11px]">{players[1].name.slice(0, 6)}</span>
+          <div className="flex-shrink-0 flex flex-col items-end gap-0.5 sm:gap-1 max-w-[36px] sm:max-w-none min-w-0">
+            <div className="flex items-center gap-0.5 sm:gap-1 px-1 sm:px-2.5 py-0.5 rounded-full bg-black/40 border border-white/10 text-[9px] sm:text-xs text-slate-300 truncate max-w-full">
+              <span className="text-[9px] sm:text-[11px] truncate max-w-[20px] sm:max-w-[60px]">{players[1].name}</span>
               <span>{players[1].avatar}</span>
               {currentTurn === 1 && (
-                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-400 animate-ping flex-shrink-0" />
               )}
             </div>
-            <div className="flex flex-col gap-0.5">
-              {players[1].hand.slice(0, 10).map((_, idx) => (
-                <MahjongTile key={idx} size="xs" isFaceDown isRotated />
+            <div className="flex flex-col gap-0.5 items-center">
+              {players[1].hand.slice(0, 8).map((_, idx) => (
+                <div key={idx} className="scale-75 sm:scale-100 origin-right">
+                  <MahjongTile size="xs" isFaceDown isRotated />
+                </div>
               ))}
             </div>
             {players[1].melds.length > 0 && (
-              <div className="flex flex-col gap-1 bg-black/40 p-1 rounded-lg border border-white/10 mt-1">
+              <div className="flex flex-col gap-1 bg-black/40 p-0.5 sm:p-1 rounded-lg border border-white/10 mt-0.5">
                 {players[1].melds.map((m, mi) => (
-                  <div key={mi} className="flex items-center gap-0.5">
+                  <div key={mi} className="flex items-center gap-0.5 scale-75 sm:scale-90">
                     {m.tiles.map((t, ti) => (
                       <MahjongTile key={ti} tile={t} size="xs" />
                     ))}
@@ -1152,82 +1159,24 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             </div>
           )}
 
-          {/* Selected Tile Floating Action HUD */}
-          {selectedTileId && (
-            <div className="flex items-center gap-1.5 mb-2 bg-[#1B132B]/95 backdrop-blur-xl px-3 py-1.5 rounded-2xl border border-amber-400/60 shadow-2xl animate-in zoom-in-95 duration-150 z-20">
-              <span className="text-[10px] text-amber-300 font-bold mr-1">
-                选定【{humanPlayer.hand.find(t => t.id === selectedTileId)?.name}】：
-              </span>
-
-              {/* Move to start */}
-              <button
-                type="button"
-                onClick={() => handleMoveTileStart(selectedTileId)}
-                title="移至手牌最左侧"
-                className="p-1 rounded-lg bg-purple-950/80 hover:bg-purple-800 text-purple-200 text-xs border border-purple-700/50 flex items-center gap-0.5"
-              >
-                <ChevronsLeft className="w-3.5 h-3.5" />
-                <span className="text-[10px] hidden sm:inline">置首</span>
-              </button>
-
-              {/* Move Left */}
-              <button
-                type="button"
-                onClick={() => handleMoveTileLeft(selectedTileId)}
-                title="向左移一位"
-                className="px-2 py-1 rounded-lg bg-purple-900/80 hover:bg-purple-700 text-purple-100 text-xs font-bold border border-purple-600/50 flex items-center gap-0.5"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-                <span className="text-[10px]">左移</span>
-              </button>
-
-              {/* Move Right */}
-              <button
-                type="button"
-                onClick={() => handleMoveTileRight(selectedTileId)}
-                title="向右移一位"
-                className="px-2 py-1 rounded-lg bg-purple-900/80 hover:bg-purple-700 text-purple-100 text-xs font-bold border border-purple-600/50 flex items-center gap-0.5"
-              >
-                <span className="text-[10px]">右移</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-
-              {/* Move to end */}
-              <button
-                type="button"
-                onClick={() => handleMoveTileEnd(selectedTileId)}
-                title="移至手牌最右侧"
-                className="p-1 rounded-lg bg-purple-950/80 hover:bg-purple-800 text-purple-200 text-xs border border-purple-700/50 flex items-center gap-0.5"
-              >
-                <span className="text-[10px] hidden sm:inline">置尾</span>
-                <ChevronsRight className="w-3.5 h-3.5" />
-              </button>
-
-              {/* Discard if my turn */}
-              {currentTurn === 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const t = humanPlayer.hand.find(item => item.id === selectedTileId);
-                    if (t) handleHumanDiscard(t);
-                  }}
-                  className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-black text-[11px] font-black shadow-md flex items-center gap-1 ml-1 animate-bounce"
-                >
-                  <span>🀄 出牌</span>
-                </button>
-              )}
-
-              {/* Cancel selection */}
-              <button
-                type="button"
-                onClick={() => setSelectedTileId(null)}
-                className="p-1 text-slate-400 hover:text-white ml-1"
-                title="取消选中"
-              >
-                ✕
-              </button>
-            </div>
-          )}
+          {/* Selected Tile Floating Action Modal (立即打出 + 移位 + 牌面信息) */}
+          {selectedTileId && (() => {
+            const selectedTile = humanPlayer.hand.find(t => t.id === selectedTileId);
+            if (!selectedTile) return null;
+            return (
+              <DiscardConfirmModal
+                tile={selectedTile}
+                isMyTurn={currentTurn === 0 && gamePhase === 'playing'}
+                onConfirmDiscard={() => handleHumanDiscard(selectedTile)}
+                onConfirm={() => handleHumanDiscard(selectedTile)}
+                onMoveLeft={() => handleMoveTileLeft(selectedTile.id)}
+                onMoveRight={() => handleMoveTileRight(selectedTile.id)}
+                onMoveStart={() => handleMoveTileStart(selectedTile.id)}
+                onMoveEnd={() => handleMoveTileEnd(selectedTile.id)}
+                onCancel={() => setSelectedTileId(null)}
+              />
+            );
+          })()}
 
           {/* Main Hand Tiles Rack (Hand Tiles + Declared Melds side-by-side or stacked cleanly) */}
           <div className="flex flex-wrap items-end justify-center gap-2 sm:gap-4 max-w-full pb-2 px-1">

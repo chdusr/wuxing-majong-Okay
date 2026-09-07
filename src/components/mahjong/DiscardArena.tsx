@@ -122,78 +122,78 @@ export const DiscardArena: React.FC<DiscardArenaProps> = ({
   const activeCompassAngle = compassAngles[currentTurnIndex] ?? 0;
 
   return (
-    <div className={`w-full flex flex-col items-center select-none ${className}`}>
+    <div className={`w-full max-w-full min-w-0 flex flex-col items-center select-none ${className}`}>
       
       {/* =========================================================================
           TOP COMPACT TOOLBAR: View Mode Tabs & Five-Element Quick Filters
           ========================================================================= */}
       {!hideToolbar && (
-        <div className="w-full flex flex-wrap items-center justify-between gap-1.5 px-2 py-1 mb-1.5 bg-[#0D0818]/90 backdrop-blur-md rounded-2xl border border-purple-500/20 shadow-sm z-20">
+        <div className="w-full min-w-0 max-w-full flex flex-col sm:flex-row items-center justify-between gap-1 px-1.5 sm:px-2 py-1 mb-1.5 bg-[#0D0818]/90 backdrop-blur-md rounded-2xl border border-purple-500/20 shadow-sm z-20 overflow-hidden">
         
         {/* Left: View Mode Switcher (整合 / 四方堂池 / 五行分类 / 八卦罗盘) */}
-        <div className="flex items-center gap-1 bg-black/40 p-0.5 rounded-xl border border-white/5">
+        <div className="w-full sm:w-auto flex items-center justify-between sm:justify-start gap-0.5 sm:gap-1 bg-black/40 p-0.5 rounded-xl border border-white/5 min-w-0 overflow-x-auto">
           <button
             type="button"
             onClick={() => setViewMode('integrated')}
-            className={`px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all ${
+            className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg text-[9px] sm:text-[10px] font-bold flex items-center gap-0.5 sm:gap-1 transition-all whitespace-nowrap ${
               viewMode === 'integrated'
                 ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 shadow'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
             title="方案整合：全景3D下沉 + 四方堂池 + 聚光灯 + 罗盘"
           >
-            <Sparkles className="w-3 h-3" />
+            <Sparkles className="w-2.5 sm:w-3 h-2.5 sm:h-3" />
             <span>全景堂池</span>
           </button>
 
           <button
             type="button"
             onClick={() => setViewMode('four_rivers')}
-            className={`px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all ${
+            className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg text-[9px] sm:text-[10px] font-bold flex items-center gap-0.5 sm:gap-1 transition-all whitespace-nowrap ${
               viewMode === 'four_rivers'
                 ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 shadow'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
             title="方案一：经典四方各自独立出牌河道"
           >
-            <LayoutGrid className="w-3 h-3" />
+            <LayoutGrid className="w-2.5 sm:w-3 h-2.5 sm:h-3" />
             <span>四方河道</span>
           </button>
 
           <button
             type="button"
             onClick={() => setViewMode('five_elements')}
-            className={`px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all ${
+            className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg text-[9px] sm:text-[10px] font-bold flex items-center gap-0.5 sm:gap-1 transition-all whitespace-nowrap ${
               viewMode === 'five_elements'
                 ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 shadow'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
             title="方案三：五行金木水火土归类看板"
           >
-            <Layers className="w-3 h-3" />
+            <Layers className="w-2.5 sm:w-3 h-2.5 sm:h-3" />
             <span>五行看板</span>
           </button>
 
           <button
             type="button"
             onClick={() => setViewMode('bagua_matrix')}
-            className={`px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all ${
+            className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg text-[9px] sm:text-[10px] font-bold flex items-center gap-0.5 sm:gap-1 transition-all whitespace-nowrap ${
               viewMode === 'bagua_matrix'
                 ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 shadow'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
             title="方案五：八卦九宫罗盘干支矩阵"
           >
-            <Compass className="w-3 h-3" />
+            <Compass className="w-2.5 sm:w-3 h-2.5 sm:h-3" />
             <span>八卦罗盘</span>
           </button>
         </div>
 
         {/* Right: Five-Element Highlighter Tabs (方案三) */}
-        <div className="flex items-center gap-1 overflow-x-auto py-0.5">
-          <span className="text-[10px] text-slate-400 hidden sm:inline flex items-center gap-0.5 mr-0.5">
+        <div className="w-full sm:w-auto flex items-center justify-between sm:justify-start gap-0.5 sm:gap-1 overflow-x-auto py-0.5 min-w-0">
+          <span className="text-[9px] text-slate-400 hidden md:inline flex items-center gap-0.5 mr-0.5 whitespace-nowrap">
             <Filter className="w-2.5 h-2.5" />
-            <span>五行过滤:</span>
+            <span>五行:</span>
           </span>
           {ELEMENT_LABELS.map(el => {
             const isSelected = activeElementFilter === el.key;
@@ -203,7 +203,7 @@ export const DiscardArena: React.FC<DiscardArenaProps> = ({
                 key={el.key}
                 type="button"
                 onClick={() => setActiveElementFilter(el.key)}
-                className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 border ${
+                className={`px-1 sm:px-1.5 py-0.5 rounded-lg text-[8px] sm:text-[9px] font-bold transition-all flex items-center gap-0.5 border whitespace-nowrap ${
                   isSelected
                     ? `${el.bg} ${el.text} ring-1 ring-amber-400/60 shadow-sm scale-105`
                     : 'bg-black/30 border-white/5 text-slate-400 hover:text-slate-200'
@@ -211,7 +211,7 @@ export const DiscardArena: React.FC<DiscardArenaProps> = ({
               >
                 <span>{el.icon}</span>
                 <span>{el.label}</span>
-                <span className="text-[9px] opacity-75 font-mono">({count})</span>
+                <span className="text-[7px] sm:text-[8px] opacity-75 font-mono">({count})</span>
               </button>
             );
           })}
@@ -222,12 +222,12 @@ export const DiscardArena: React.FC<DiscardArenaProps> = ({
       {/* =========================================================================
           MAIN 3D RECESSED ARENA MAT (方案九：全景沉浸阶梯下沉式 3D 景深悬浮台)
           ========================================================================= */}
-      <div className="relative w-full rounded-3xl bg-gradient-to-b from-[#09151D] via-[#0D1C1B] to-[#081216] border-2 border-emerald-500/25 p-2 sm:p-3.5 shadow-[inset_0_4px_25px_rgba(0,0,0,0.85),0_12px_36px_rgba(0,0,0,0.6)] overflow-hidden min-h-[220px] flex flex-col justify-between">
+      <div className="relative w-full min-w-0 max-w-full rounded-2xl sm:rounded-3xl bg-gradient-to-b from-[#09151D] via-[#0D1C1B] to-[#081216] border-2 border-emerald-500/25 p-1 sm:p-2.5 shadow-[inset_0_4px_25px_rgba(0,0,0,0.85),0_12px_36px_rgba(0,0,0,0.6)] overflow-hidden min-h-[130px] sm:min-h-[170px] md:min-h-[200px] flex flex-col justify-between">
         
         {/* Subtle Tai-Chi / Bagua Background Watermark (方案五) */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.06] overflow-hidden">
-          <div className="w-96 h-96 rounded-full border-[12px] border-emerald-400 flex items-center justify-center animate-[spin_120s_linear_infinite]">
-            <span className="text-9xl">☯️</span>
+          <div className="w-48 h-48 sm:w-80 sm:h-80 rounded-full border-[8px] sm:border-[12px] border-emerald-400 flex items-center justify-center animate-[spin_120s_linear_infinite]">
+            <span className="text-5xl sm:text-8xl">☯️</span>
           </div>
         </div>
 
@@ -235,19 +235,19 @@ export const DiscardArena: React.FC<DiscardArenaProps> = ({
             VIEW MODE 1 & 2: INTEGRATED / FOUR RIVERS (四方堂池 + 中央聚合焦点)
             ========================================================================= */}
         {(viewMode === 'integrated' || viewMode === 'four_rivers') && (
-          <div className="relative w-full flex flex-col justify-between gap-1.5 z-10">
+          <div className="relative w-full min-w-0 max-w-full flex flex-col justify-between gap-1 z-10">
             
             {/* 1. North Player Discards (对家堂池) */}
-            <div className="w-full flex flex-col items-center">
-              <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mb-0.5">
+            <div className="w-full min-w-0 flex flex-col items-center">
+              <div className="flex items-center gap-1 text-[8px] sm:text-[10px] text-slate-400 mb-0.5 truncate max-w-full">
                 <span className="text-xs">{oppPlayer?.avatar}</span>
-                <span className="text-slate-300 font-semibold">{oppPlayer?.name}</span>
+                <span className="text-slate-300 font-semibold truncate max-w-[60px] sm:max-w-[100px]">{oppPlayer?.name}</span>
                 <span className="text-amber-400/80 font-mono">【{oppPlayer?.seatName || '北'}】</span>
-                <span className="text-[9px] text-slate-500">({oppPlayer?.discards.length ?? 0}张)</span>
+                <span className="text-[8px] sm:text-[9px] text-slate-500">({oppPlayer?.discards.length ?? 0}张)</span>
               </div>
-              <div className="flex flex-wrap items-center justify-center gap-1 max-h-16 overflow-y-auto px-2 py-1 rounded-xl bg-black/30 border border-white/5 w-full max-w-lg min-h-[36px]">
+              <div className="flex flex-wrap items-center justify-center gap-0.5 max-h-12 sm:max-h-16 overflow-y-auto px-1 py-0.5 rounded-lg sm:rounded-xl bg-black/30 border border-white/5 w-full max-w-lg min-h-[26px] sm:min-h-[34px]">
                 {oppPlayer?.discards.length === 0 ? (
-                  <span className="text-[10px] text-slate-600">未出牌</span>
+                  <span className="text-[8px] sm:text-[10px] text-slate-600">未出牌</span>
                 ) : (
                   oppPlayer?.discards.map((tile, idx) => {
                     const isLast = lastDiscard?.playerIndex === 2 && idx === oppPlayer.discards.length - 1;
@@ -255,7 +255,7 @@ export const DiscardArena: React.FC<DiscardArenaProps> = ({
                     return (
                       <div
                         key={idx}
-                        className={`transition-all ${
+                        className={`transition-all scale-90 sm:scale-100 ${
                           matches ? 'opacity-100' : 'opacity-25 grayscale'
                         } ${isLast ? 'scale-105 z-10' : ''}`}
                       >
@@ -272,18 +272,18 @@ export const DiscardArena: React.FC<DiscardArenaProps> = ({
             </div>
 
             {/* 2. Middle Row: Left (上家), Center Spotlight & LuoPan Dial, Right (下家) */}
-            <div className="w-full grid grid-cols-12 items-center gap-2 my-1">
+            <div className="w-full grid grid-cols-12 items-center gap-0.5 sm:gap-1.5 my-0.5 sm:my-1 min-w-0 max-w-full">
               
               {/* Left Player Discards (上家堂池) */}
-              <div className="col-span-3 flex flex-col items-center">
-                <div className="flex items-center gap-1 text-[10px] text-slate-400 mb-0.5">
-                  <span className="text-xs">{leftPlayer?.avatar}</span>
-                  <span className="text-slate-300 font-semibold truncate max-w-[50px]">{leftPlayer?.name}</span>
-                  <span className="text-amber-400/80 font-mono text-[9px]">【{leftPlayer?.seatName || '西'}】</span>
+              <div className="col-span-3 min-w-0 flex flex-col items-center">
+                <div className="flex items-center gap-0.5 text-[8px] sm:text-[10px] text-slate-400 mb-0.5 truncate max-w-full">
+                  <span className="text-[10px] sm:text-xs">{leftPlayer?.avatar}</span>
+                  <span className="text-slate-300 font-semibold truncate max-w-[26px] sm:max-w-[45px]">{leftPlayer?.name}</span>
+                  <span className="text-amber-400/80 font-mono text-[7px] sm:text-[9px]">【{leftPlayer?.seatName?.slice(0, 1) || '西'}】</span>
                 </div>
-                <div className="flex flex-wrap items-center justify-center gap-1 max-h-24 overflow-y-auto p-1 rounded-xl bg-black/30 border border-white/5 w-full min-h-[50px]">
+                <div className="flex flex-wrap items-center justify-center gap-0.5 max-h-16 sm:max-h-24 overflow-y-auto p-0.5 rounded-lg sm:rounded-xl bg-black/30 border border-white/5 w-full min-h-[36px] sm:min-h-[48px]">
                   {leftPlayer?.discards.length === 0 ? (
-                    <span className="text-[10px] text-slate-600">未出牌</span>
+                    <span className="text-[8px] sm:text-[10px] text-slate-600">未出牌</span>
                   ) : (
                     leftPlayer?.discards.map((tile, idx) => {
                       const isLast = lastDiscard?.playerIndex === 3 && idx === leftPlayer.discards.length - 1;
@@ -291,7 +291,7 @@ export const DiscardArena: React.FC<DiscardArenaProps> = ({
                       return (
                         <div
                           key={idx}
-                          className={`transition-all ${
+                          className={`transition-all scale-90 sm:scale-100 ${
                             matches ? 'opacity-100' : 'opacity-25 grayscale'
                           } ${isLast ? 'scale-105 z-10' : ''}`}
                         >
@@ -308,15 +308,15 @@ export const DiscardArena: React.FC<DiscardArenaProps> = ({
               </div>
 
               {/* Center Spotlight Hub (方案二焦点放大 + 方案五罗盘阵盘) */}
-              <div className="col-span-6 flex flex-col items-center justify-center p-2 rounded-2xl bg-gradient-to-b from-[#140C26]/95 via-[#0F1B22]/95 to-[#09151A]/95 border border-amber-500/30 shadow-[0_4px_20px_rgba(0,0,0,0.7),inset_0_1px_1px_rgba(255,255,255,0.1)] relative min-h-[115px]">
+              <div className="col-span-6 min-w-0 flex flex-col items-center justify-center p-1 sm:p-2 rounded-xl sm:rounded-2xl bg-gradient-to-b from-[#140C26]/95 via-[#0F1B22]/95 to-[#09151A]/95 border border-amber-500/30 shadow-[0_4px_20px_rgba(0,0,0,0.7),inset_0_1px_1px_rgba(255,255,255,0.1)] relative min-h-[85px] sm:min-h-[110px] overflow-hidden">
                 
                 {/* Rotating LuoPan Compass Pointer & Direction Ring (方案五) */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20 overflow-hidden">
                   <div
-                    className="w-28 h-28 rounded-full border-2 border-dashed border-amber-400/60 flex items-center justify-center transition-transform duration-700 ease-out"
+                    className="w-16 h-16 sm:w-26 sm:h-26 rounded-full border-2 border-dashed border-amber-400/60 flex items-center justify-center transition-transform duration-700 ease-out"
                     style={{ transform: `rotate(${activeCompassAngle}deg)` }}
                   >
-                    <div className="w-full flex justify-between px-1 text-[8px] text-amber-300 font-bold">
+                    <div className="w-full flex justify-between px-1 text-[7px] sm:text-[8px] text-amber-300 font-bold">
                       <span>西</span>
                       <span>东</span>
                     </div>
@@ -324,15 +324,15 @@ export const DiscardArena: React.FC<DiscardArenaProps> = ({
                 </div>
 
                 {/* Status HUD Header: Current Turn + Countdown */}
-                <div className="w-full flex items-center justify-between px-1 mb-1 text-[10px]">
-                  <div className="flex items-center gap-1 text-amber-300 font-semibold bg-black/40 px-2 py-0.5 rounded-lg border border-purple-500/20">
-                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-                    <span>{players[currentTurnIndex]?.name || '道友'} 行牌中</span>
+                <div className="w-full flex items-center justify-between px-0.5 sm:px-1 mb-0.5 text-[8px] sm:text-[10px] min-w-0">
+                  <div className="flex items-center gap-0.5 sm:gap-1 text-amber-300 font-semibold bg-black/40 px-1 sm:px-2 py-0.5 rounded-md sm:rounded-lg border border-purple-500/20 truncate max-w-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping flex-shrink-0" />
+                    <span className="truncate">{players[currentTurnIndex]?.name || '道友'} 行牌</span>
                   </div>
 
                   {countdown !== undefined && countdown > 0 && (
-                    <div className="flex items-center gap-1 text-amber-300 font-mono font-bold bg-amber-950/80 px-1.5 py-0.5 rounded-lg border border-amber-500/30">
-                      <Clock className="w-3 h-3 text-amber-400" />
+                    <div className="flex items-center gap-0.5 text-amber-300 font-mono font-bold bg-amber-950/80 px-1 py-0.5 rounded-md sm:rounded-lg border border-amber-500/30 flex-shrink-0">
+                      <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-400" />
                       <span>{countdown}s</span>
                     </div>
                   )}
@@ -341,30 +341,30 @@ export const DiscardArena: React.FC<DiscardArenaProps> = ({
                 {/* Last Discard Spotlight Focus (方案二) */}
                 {lastDiscard ? (
                   <div className="flex flex-col items-center animate-in zoom-in-95 duration-200">
-                    <div className="flex items-center gap-1 text-[11px] text-amber-300 font-bold mb-1">
-                      <span>【{players[lastDiscard.playerIndex]?.name}】打出：</span>
-                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-200 border border-amber-400/30">
+                    <div className="flex items-center gap-1 text-[9px] sm:text-[11px] text-amber-300 font-bold mb-0.5">
+                      <span className="truncate max-w-[60px] sm:max-w-none">【{players[lastDiscard.playerIndex]?.name}】打出：</span>
+                      <span className="text-[7px] sm:text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-200 border border-amber-400/30">
                         {lastDiscard.tile.elementName}行
                       </span>
                     </div>
                     {/* Glowing Spotlight Stage */}
-                    <div className="relative p-1 rounded-2xl bg-gradient-to-b from-amber-400/30 to-purple-600/30 ring-2 ring-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.4)] transform hover:scale-105 transition-transform">
-                      <MahjongTile tile={lastDiscard.tile} size="md" />
+                    <div className="relative p-0.5 sm:p-1 rounded-xl sm:rounded-2xl bg-gradient-to-b from-amber-400/30 to-purple-600/30 ring-2 ring-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.4)] transform hover:scale-105 transition-transform">
+                      <MahjongTile tile={lastDiscard.tile} size="sm" />
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center py-2 text-center text-slate-500 space-y-0.5">
-                    <div className="text-xl">☯️</div>
-                    <div className="text-[11px] text-amber-300/80 font-serif font-bold">五行乾坤堂池</div>
-                    <div className="text-[9px] text-slate-400">等待首张出牌...</div>
+                  <div className="flex flex-col items-center justify-center py-1 text-center text-slate-500 space-y-0.5">
+                    <div className="text-sm sm:text-lg">☯️</div>
+                    <div className="text-[9px] sm:text-[11px] text-amber-300/80 font-serif font-bold">五行乾坤堂池</div>
+                    <div className="text-[7px] sm:text-[9px] text-slate-400">等待首张出牌...</div>
                   </div>
                 )}
 
                 {/* Dice Display */}
                 {diceValues && (
-                  <div className="mt-1 flex items-center gap-2 text-[10px] text-amber-300/80 font-mono">
-                    <span className="bg-black/50 px-1.5 py-0.2 rounded border border-white/10">
-                      🎲 骰点 [{diceValues[0]}, {diceValues[1]}]
+                  <div className="mt-0.5 flex items-center gap-1 text-[7px] sm:text-[9px] text-amber-300/80 font-mono">
+                    <span className="bg-black/50 px-1 py-0.2 rounded border border-white/10">
+                      🎲 [{diceValues[0]}, {diceValues[1]}]
                     </span>
                   </div>
                 )}
@@ -372,15 +372,15 @@ export const DiscardArena: React.FC<DiscardArenaProps> = ({
               </div>
 
               {/* Right Player Discards (下家堂池) */}
-              <div className="col-span-3 flex flex-col items-center">
-                <div className="flex items-center gap-1 text-[10px] text-slate-400 mb-0.5">
-                  <span className="text-xs">{rightPlayer?.avatar}</span>
-                  <span className="text-slate-300 font-semibold truncate max-w-[50px]">{rightPlayer?.name}</span>
-                  <span className="text-amber-400/80 font-mono text-[9px]">【{rightPlayer?.seatName || '东'}】</span>
+              <div className="col-span-3 min-w-0 flex flex-col items-center">
+                <div className="flex items-center gap-0.5 text-[8px] sm:text-[10px] text-slate-400 mb-0.5 truncate max-w-full">
+                  <span className="text-[10px] sm:text-xs">{rightPlayer?.avatar}</span>
+                  <span className="text-slate-300 font-semibold truncate max-w-[26px] sm:max-w-[45px]">{rightPlayer?.name}</span>
+                  <span className="text-amber-400/80 font-mono text-[7px] sm:text-[9px]">【{rightPlayer?.seatName?.slice(0, 1) || '东'}】</span>
                 </div>
-                <div className="flex flex-wrap items-center justify-center gap-1 max-h-24 overflow-y-auto p-1 rounded-xl bg-black/30 border border-white/5 w-full min-h-[50px]">
+                <div className="flex flex-wrap items-center justify-center gap-0.5 max-h-16 sm:max-h-24 overflow-y-auto p-0.5 rounded-lg sm:rounded-xl bg-black/30 border border-white/5 w-full min-h-[36px] sm:min-h-[48px]">
                   {rightPlayer?.discards.length === 0 ? (
-                    <span className="text-[10px] text-slate-600">未出牌</span>
+                    <span className="text-[8px] sm:text-[10px] text-slate-600">未出牌</span>
                   ) : (
                     rightPlayer?.discards.map((tile, idx) => {
                       const isLast = lastDiscard?.playerIndex === 1 && idx === rightPlayer.discards.length - 1;
@@ -388,7 +388,7 @@ export const DiscardArena: React.FC<DiscardArenaProps> = ({
                       return (
                         <div
                           key={idx}
-                          className={`transition-all ${
+                          className={`transition-all scale-90 sm:scale-100 ${
                             matches ? 'opacity-100' : 'opacity-25 grayscale'
                           } ${isLast ? 'scale-105 z-10' : ''}`}
                         >
@@ -407,16 +407,16 @@ export const DiscardArena: React.FC<DiscardArenaProps> = ({
             </div>
 
             {/* 3. South Player Discards (本家堂池) */}
-            <div className="w-full flex flex-col items-center">
-              <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mb-0.5">
+            <div className="w-full min-w-0 flex flex-col items-center">
+              <div className="flex items-center gap-1 text-[8px] sm:text-[10px] text-slate-400 mb-0.5 truncate max-w-full">
                 <span className="text-xs">{selfPlayer?.avatar}</span>
-                <span className="text-emerald-300 font-bold">{selfPlayer?.name || '我方'} (本家)</span>
+                <span className="text-emerald-300 font-bold truncate max-w-[60px] sm:max-w-[100px]">{selfPlayer?.name || '我方'} (本家)</span>
                 <span className="text-amber-400/80 font-mono">【{selfPlayer?.seatName || '南'}】</span>
-                <span className="text-[9px] text-slate-500">({selfPlayer?.discards.length ?? 0}张)</span>
+                <span className="text-[8px] sm:text-[9px] text-slate-500">({selfPlayer?.discards.length ?? 0}张)</span>
               </div>
-              <div className="flex flex-wrap items-center justify-center gap-1 max-h-16 overflow-y-auto px-2 py-1 rounded-xl bg-black/30 border border-emerald-500/20 w-full max-w-lg min-h-[36px]">
+              <div className="flex flex-wrap items-center justify-center gap-0.5 max-h-12 sm:max-h-16 overflow-y-auto px-1 py-0.5 rounded-lg sm:rounded-xl bg-black/30 border border-emerald-500/20 w-full max-w-lg min-h-[26px] sm:min-h-[34px]">
                 {selfPlayer?.discards.length === 0 ? (
-                  <span className="text-[10px] text-slate-600">未出牌</span>
+                  <span className="text-[8px] sm:text-[10px] text-slate-600">未出牌</span>
                 ) : (
                   selfPlayer?.discards.map((tile, idx) => {
                     const isLast = lastDiscard?.playerIndex === 0 && idx === selfPlayer.discards.length - 1;
@@ -424,7 +424,7 @@ export const DiscardArena: React.FC<DiscardArenaProps> = ({
                     return (
                       <div
                         key={idx}
-                        className={`transition-all ${
+                        className={`transition-all scale-90 sm:scale-100 ${
                           matches ? 'opacity-100' : 'opacity-25 grayscale'
                         } ${isLast ? 'scale-105 z-10' : ''}`}
                       >
@@ -447,7 +447,7 @@ export const DiscardArena: React.FC<DiscardArenaProps> = ({
             VIEW MODE 3: FIVE ELEMENTS BOARD (方案三：五行金木水火土分类看板)
             ========================================================================= */}
         {viewMode === 'five_elements' && (
-          <div className="w-full grid grid-cols-5 gap-1.5 z-10 py-1">
+          <div className="w-full min-w-0 grid grid-cols-5 gap-0.5 sm:gap-1.5 z-10 py-1">
             {(['wood', 'fire', 'earth', 'metal', 'water'] as ElementType[]).map(elem => {
               const info = ELEMENT_LABELS.find(e => e.key === elem)!;
               const tilesInElem = allDiscards.filter(d => d.tile.element === elem);
@@ -455,29 +455,29 @@ export const DiscardArena: React.FC<DiscardArenaProps> = ({
               return (
                 <div
                   key={elem}
-                  className={`flex flex-col items-center rounded-2xl p-1.5 border transition-all ${
+                  className={`min-w-0 flex flex-col items-center rounded-xl sm:rounded-2xl p-0.5 sm:p-1.5 border transition-all ${
                     activeElementFilter === 'all' || activeElementFilter === elem
                       ? `${info.bg} ring-1 ring-white/10`
                       : 'bg-black/40 border-white/5 opacity-40'
                   }`}
                 >
-                  <div className="flex items-center gap-1 text-[11px] font-bold mb-1">
+                  <div className="flex items-center gap-0.5 text-[8px] sm:text-[11px] font-bold mb-0.5 sm:mb-1 truncate max-w-full">
                     <span>{info.icon}</span>
-                    <span className={info.text}>{info.label}行</span>
-                    <span className="text-[10px] text-slate-400 font-mono">({tilesInElem.length})</span>
+                    <span className={info.text}>{info.label}</span>
+                    <span className="text-[7px] sm:text-[10px] text-slate-400 font-mono">({tilesInElem.length})</span>
                   </div>
-                  <div className="flex flex-wrap items-center justify-center gap-1 max-h-36 overflow-y-auto w-full p-1 rounded-xl bg-black/30 min-h-[60px]">
+                  <div className="flex flex-wrap items-center justify-center gap-0.5 max-h-24 sm:max-h-36 overflow-y-auto w-full p-0.5 sm:p-1 rounded-lg sm:rounded-xl bg-black/30 min-h-[40px] sm:min-h-[60px]">
                     {tilesInElem.length === 0 ? (
-                      <span className="text-[9px] text-slate-600 my-auto">尚无弃牌</span>
+                      <span className="text-[7px] sm:text-[9px] text-slate-600 my-auto">空</span>
                     ) : (
                       tilesInElem.map((item, idx) => (
                         <div
                           key={idx}
                           title={`${item.playerName} (${item.seatName}) 打出`}
-                          className="relative group cursor-pointer"
+                          className="relative group cursor-pointer scale-75 sm:scale-100"
                         >
                           <MahjongTile tile={item.tile} size="xs" />
-                          <span className="absolute -bottom-1 -right-1 text-[8px] bg-black/80 text-amber-300 px-0.5 rounded font-mono scale-75 pointer-events-none">
+                          <span className="absolute -bottom-1 -right-1 text-[7px] bg-black/80 text-amber-300 px-0.5 rounded font-mono scale-75 pointer-events-none">
                             {item.seatName.slice(0, 1)}
                           </span>
                         </div>
@@ -494,7 +494,7 @@ export const DiscardArena: React.FC<DiscardArenaProps> = ({
             VIEW MODE 4: BAGUA COMPASS MATRIX (方案五：八卦九宫罗盘干支矩阵)
             ========================================================================= */}
         {viewMode === 'bagua_matrix' && (
-          <div className="w-full grid grid-cols-4 sm:grid-cols-4 gap-1.5 z-10 py-1">
+          <div className="w-full min-w-0 grid grid-cols-4 gap-0.5 sm:gap-1.5 z-10 py-1">
             {BAGUA_SLOTS.map((slot, idx) => {
               // Tiles matching this branch or element
               const matchingTiles = allDiscards.filter(d => {
@@ -508,18 +508,20 @@ export const DiscardArena: React.FC<DiscardArenaProps> = ({
               return (
                 <div
                   key={idx}
-                  className="flex flex-col items-center rounded-2xl p-1.5 bg-black/40 border border-purple-500/20"
+                  className="min-w-0 flex flex-col items-center rounded-xl sm:rounded-2xl p-0.5 sm:p-1.5 bg-black/40 border border-purple-500/20"
                 >
-                  <div className="flex items-center justify-between w-full px-1 text-[10px] font-bold text-amber-300 mb-0.5">
+                  <div className="flex items-center justify-between w-full px-0.5 text-[8px] sm:text-[10px] font-bold text-amber-300 mb-0.5 truncate">
                     <span>{slot.bagua}</span>
-                    <span className="text-[9px] text-slate-400">{slot.branch}</span>
+                    <span className="text-[7px] sm:text-[9px] text-slate-400">{slot.branch}</span>
                   </div>
-                  <div className="flex flex-wrap items-center justify-center gap-0.5 max-h-20 overflow-y-auto w-full p-1 bg-black/30 rounded-xl min-h-[42px]">
+                  <div className="flex flex-wrap items-center justify-center gap-0.5 max-h-16 sm:max-h-20 overflow-y-auto w-full p-0.5 sm:p-1 bg-black/30 rounded-lg sm:rounded-xl min-h-[32px] sm:min-h-[42px]">
                     {matchingTiles.length === 0 ? (
-                      <span className="text-[9px] text-slate-600 my-auto">空</span>
+                      <span className="text-[7px] sm:text-[9px] text-slate-600 my-auto">空</span>
                     ) : (
                       matchingTiles.map((m, mIdx) => (
-                        <MahjongTile key={mIdx} tile={m.tile} size="xs" />
+                        <div key={mIdx} className="scale-75 sm:scale-100">
+                          <MahjongTile tile={m.tile} size="xs" />
+                        </div>
                       ))
                     )}
                   </div>

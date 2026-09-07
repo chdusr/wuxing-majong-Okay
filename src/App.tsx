@@ -57,7 +57,7 @@ export default function App() {
       </header>
 
       {/* Main Content View Container */}
-      <main className="flex-1 w-full max-w-4xl mx-auto pb-24 pt-1">
+      <main className="flex-1 w-full max-w-4xl mx-auto pb-24 pt-1 px-1 sm:px-2 min-w-0 overflow-x-hidden">
         {activeTab === 'game' && (
           <GameBoard
             onOpenRules={() => setActiveTab('rules')}

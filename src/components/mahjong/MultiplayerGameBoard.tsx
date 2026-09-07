@@ -43,6 +43,7 @@ import { DrawSettlementModal } from './DrawSettlementModal';
 import { HandOrganizerModal } from './HandOrganizerModal';
 import { HuAuditModal } from './HuAuditModal';
 import { RulebookView } from './RulebookView';
+import { DiscardConfirmModal } from './DiscardConfirmModal';
 import { HandBuilder } from './HandBuilder';
 import {
   Volume2,
@@ -168,14 +169,20 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
   const handFingerprint = (myPlayer?.hand || []).map(t => t.id).join(',');
   const lastDrawnFingerprint = myPlayer?.lastDrawnTile?.id || '';
 
-  // Sync hand with server updates while strictly preserving custom/smart-organized order
+  // Sync hand with server updates and auto-execute smart hand organization upon drawing tiles
   useEffect(() => {
     if (!myPlayer?.hand) return;
+
+    const meldsCount = myPlayer?.melds?.length || 0;
 
     setLocalHand(prev => {
       const serverHand = myPlayer.hand!;
       if (serverHand.length === 0) return [];
-      if (prev.length === 0) return serverHand;
+      
+      // 1. Initial deal: default to smart-organized hand
+      if (prev.length === 0) {
+        return getSmartOrganizedHand(serverHand, meldsCount);
+      }
 
       // Build map of server tiles with availability count
       const serverCounts = new Map<string, number>();
@@ -216,6 +223,12 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
 
       // Collect any newly drawn or remaining tiles from server
       const newTiles = serverHand.filter(t => !usedIds.has(t.id));
+
+      // 2. If a new tile was drawn into the hand (摸牌后), auto-execute smart hand organization
+      if (newTiles.length > 0) {
+        return getSmartOrganizedHand(serverHand, meldsCount);
+      }
+
       const combined = [...preserved, ...newTiles];
 
       // If length perfectly matches server hand, return organized combination
@@ -224,7 +237,7 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
       }
 
       // Safe fallback if count mismatch
-      return serverHand;
+      return getSmartOrganizedHand(serverHand, meldsCount);
     });
   }, [myPlayer?.hand, handFingerprint, lastDrawnFingerprint, gameState.currentTurn, gameState.wallRemaining]);
 
@@ -744,7 +757,7 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
       )}
 
       {/* 4-Way Mahjong Table Canvas */}
-      <div className="relative bg-gradient-to-b from-[#110A1F] via-[#1B112E] to-[#120B20] border-2 border-purple-500/30 rounded-3xl p-3 sm:p-5 shadow-2xl min-h-[530px] flex flex-col justify-between overflow-hidden">
+      <div className="relative bg-gradient-to-b from-[#110A1F] via-[#1B112E] to-[#120B20] border-2 border-purple-500/30 rounded-3xl p-2 sm:p-4 shadow-2xl min-h-[360px] sm:min-h-[480px] lg:min-h-[540px] flex flex-col justify-between overflow-hidden">
         
         {/* Table Felt Subtle Glow Center */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(147,51,234,0.14)_0%,transparent_70%)] pointer-events-none" />
@@ -757,27 +770,27 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
 
           return (
             <div className="flex flex-col items-center z-10">
-              <div className={`flex items-center gap-2 px-3 py-1 rounded-2xl border transition-all ${
+              <div className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-2xl border transition-all ${
                 isTurn
                   ? 'bg-amber-400/20 border-amber-400 shadow-md shadow-amber-400/20 animate-pulse'
                   : 'bg-black/40 border-purple-500/20'
               }`}>
-                <span className="text-xl">{player?.avatar || '👤'}</span>
-                <span className="font-bold text-xs text-slate-200 truncate max-w-[100px]">
+                <span className="text-lg sm:text-xl">{player?.avatar || '👤'}</span>
+                <span className="font-bold text-xs text-slate-200 truncate max-w-[80px] sm:max-w-[100px]">
                   {player?.name || '对家'}
                 </span>
-                {isDealer && <Crown className="w-3.5 h-3.5 text-amber-400" title="庄家" />}
-                <span className="text-[10px] text-amber-300 font-mono">{SEAT_NAMES[seatIdx]}</span>
-                <span className="text-[10px] text-slate-400">({player?.handCount ?? 13}张)</span>
+                {isDealer && <Crown className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-amber-400" title="庄家" />}
+                <span className="text-[9px] sm:text-[10px] text-amber-300 font-mono">{SEAT_NAMES[seatIdx]}</span>
+                <span className="text-[9px] sm:text-[10px] text-slate-400">({player?.handCount ?? 13}张)</span>
               </div>
 
               {/* Opponent Melds */}
-              <div className="flex flex-wrap gap-1 mt-1 justify-center max-w-md">
+              <div className="flex flex-wrap gap-1 mt-0.5 sm:mt-1 justify-center max-w-md">
                 {player?.melds.map((meld, mIdx) => (
-                  <div key={mIdx} className="flex gap-0.5 bg-black/40 p-0.5 rounded-lg border border-purple-500/20 scale-90">
-                    <span className="text-[9px] text-amber-300 self-center px-0.5 font-bold">{meld.typeLabel}</span>
+                  <div key={mIdx} className="flex gap-0.5 bg-black/40 p-0.5 rounded-lg border border-purple-500/20 scale-75 sm:scale-90">
+                    <span className="text-[8px] sm:text-[9px] text-amber-300 self-center px-0.5 font-bold">{meld.typeLabel}</span>
                     {meld.tiles.map((t, tIdx) => (
-                      <MahjongTile key={tIdx} tile={t} size="sm" />
+                      <MahjongTile key={tIdx} tile={t} size="xs" />
                     ))}
                   </div>
                 ))}
@@ -787,30 +800,32 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
         })()}
 
         {/* MIDDLE SECTION: Left Player (上家) | Table Center (Discards & Turn Dial) | Right Player (下家) */}
-        <div className="grid grid-cols-12 items-center gap-2 my-2 z-10">
+        <div className="grid grid-cols-12 items-center gap-1 sm:gap-2 my-1 z-10">
           
           {/* Left Player (上家) */}
-          <div className="col-span-3 flex flex-col items-start space-y-1">
+          <div className="col-span-2 sm:col-span-3 flex flex-col items-start space-y-1">
             {(() => {
               const { player, seatIdx } = relativePlayers[3];
               const isTurn = gameState.currentTurn === seatIdx;
               const isDealer = gameState.dealerIndex === seatIdx;
 
               return (
-                <div className={`p-2 rounded-2xl border transition-all w-full max-w-[130px] ${
+                <div className={`p-1.5 sm:p-2 rounded-2xl border transition-all w-full max-w-[130px] ${
                   isTurn
                     ? 'bg-amber-400/20 border-amber-400 shadow-md animate-pulse'
                     : 'bg-black/40 border-purple-500/20'
                 }`}>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-lg">{player?.avatar || '👤'}</span>
-                    <span className="font-bold text-xs text-slate-200 truncate">{player?.name || '上家'}</span>
-                    {isDealer && <Crown className="w-3 h-3 text-amber-400" title="庄家" />}
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm sm:text-lg">{player?.avatar || '👤'}</span>
+                    <span className="font-bold text-[10px] sm:text-xs text-slate-200 truncate max-w-[45px] sm:max-w-[70px]">{player?.name || '上家'}</span>
+                    {isDealer && <Crown className="w-2.5 sm:w-3 h-2.5 sm:h-3 text-amber-400" title="庄家" />}
                   </div>
-                  <div className="text-[10px] text-amber-300 mt-0.5">{SEAT_NAMES[seatIdx]}</div>
-                  <div className="text-[10px] text-slate-400">{player?.handCount ?? 13}张手牌</div>
+                  <div className="text-[9px] sm:text-[10px] text-amber-300 mt-0.5 flex items-center justify-between">
+                    <span>{SEAT_NAMES[seatIdx]}</span>
+                    <span className="text-slate-400 text-[8px] sm:text-[9px]">{player?.handCount ?? 13}张</span>
+                  </div>
                   {player?.melds && player.melds.length > 0 && (
-                    <div className="mt-1 text-[9px] text-purple-300">
+                    <div className="mt-0.5 text-[8px] sm:text-[9px] text-purple-300 hidden sm:block">
                       已亮{player.melds.length}砍
                     </div>
                   )}
@@ -819,8 +834,8 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
             })()}
           </div>
 
-          {/* Table Center: Integrated Discard Arena (方案整合：四方堂池 + 聚光灯 + 五行分类 + 八卦罗盘 + 近场槽 + 3D悬浮) */}
-          <div className="col-span-6 flex flex-col items-center justify-center p-1 sm:p-2 bg-[#120822]/85 border border-purple-500/30 rounded-3xl min-h-[190px] relative shadow-inner">
+          {/* Table Center: Integrated Discard Arena (方案整合：四方堂池 + 聚光灯 + 五行分类 + 八卦罗盘 + 3D悬浮) */}
+          <div className="col-span-8 sm:col-span-6 flex flex-col items-center justify-center p-1 sm:p-2 bg-[#120822]/85 border border-purple-500/30 rounded-2xl sm:rounded-3xl min-h-[140px] sm:min-h-[180px] relative shadow-inner">
             <DiscardArena
               players={arenaPlayers}
               currentTurnIndex={currentArenaTurnIdx}
@@ -833,7 +848,6 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
                     }
                   : null
               }
-              selectedTileForDiscard={myPlayer?.hand.find(t => t.id === selectedTileId) || null}
               isMyTurn={isMyTurn}
               countdown={countdown}
               onConfirmDiscard={(tile) => executeDiscard(tile.id)}
@@ -842,27 +856,29 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
           </div>
 
           {/* Right Player (下家) */}
-          <div className="col-span-3 flex flex-col items-end space-y-1">
+          <div className="col-span-2 sm:col-span-3 flex flex-col items-end space-y-1">
             {(() => {
               const { player, seatIdx } = relativePlayers[1];
               const isTurn = gameState.currentTurn === seatIdx;
               const isDealer = gameState.dealerIndex === seatIdx;
 
               return (
-                <div className={`p-2 rounded-2xl border transition-all w-full max-w-[130px] ${
+                <div className={`p-1.5 sm:p-2 rounded-2xl border transition-all w-full max-w-[130px] ${
                   isTurn
                     ? 'bg-amber-400/20 border-amber-400 shadow-md animate-pulse'
                     : 'bg-black/40 border-purple-500/20'
                 }`}>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-lg">{player?.avatar || '👤'}</span>
-                    <span className="font-bold text-xs text-slate-200 truncate">{player?.name || '下家'}</span>
-                    {isDealer && <Crown className="w-3 h-3 text-amber-400" title="庄家" />}
+                  <div className="flex items-center gap-1 justify-end">
+                    <span className="font-bold text-[10px] sm:text-xs text-slate-200 truncate max-w-[45px] sm:max-w-[70px]">{player?.name || '下家'}</span>
+                    <span className="text-sm sm:text-lg">{player?.avatar || '👤'}</span>
+                    {isDealer && <Crown className="w-2.5 sm:w-3 h-2.5 sm:h-3 text-amber-400" title="庄家" />}
                   </div>
-                  <div className="text-[10px] text-amber-300 mt-0.5">{SEAT_NAMES[seatIdx]}</div>
-                  <div className="text-[10px] text-slate-400">{player?.handCount ?? 13}张手牌</div>
+                  <div className="text-[9px] sm:text-[10px] text-amber-300 mt-0.5 flex items-center justify-between">
+                    <span className="text-slate-400 text-[8px] sm:text-[9px]">{player?.handCount ?? 13}张</span>
+                    <span>{SEAT_NAMES[seatIdx]}</span>
+                  </div>
                   {player?.melds && player.melds.length > 0 && (
-                    <div className="mt-1 text-[9px] text-purple-300">
+                    <div className="mt-0.5 text-[8px] sm:text-[9px] text-purple-300 hidden sm:block text-right">
                       已亮{player.melds.length}砍
                     </div>
                   )}
@@ -918,79 +934,25 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
             </div>
           </div>
 
-          {/* Selected Tile Floating Action HUD (Move Left, Right, Start, End, Discard) */}
-          {selectedTileId && (
-            <div className="flex items-center gap-1.5 bg-[#1B132B]/95 backdrop-blur-xl px-3 py-1.5 rounded-2xl border border-amber-400/60 shadow-2xl animate-in zoom-in-95 duration-150 z-20">
-              <span className="text-[11px] text-amber-300 font-bold mr-1">
-                选定【{localHand.find(t => t.id === selectedTileId)?.name}】：
-              </span>
-
-              {/* Move to start */}
-              <button
-                type="button"
-                onClick={() => handleMoveTileStart(selectedTileId)}
-                title="移至手牌最左侧"
-                className="p-1 rounded-lg bg-purple-950/80 hover:bg-purple-800 text-purple-200 text-xs border border-purple-700/50 flex items-center gap-0.5"
-              >
-                <ChevronsLeft className="w-3.5 h-3.5" />
-                <span className="text-[10px] hidden sm:inline">置首</span>
-              </button>
-
-              {/* Move Left */}
-              <button
-                type="button"
-                onClick={() => handleMoveTileLeft(selectedTileId)}
-                title="向左移一位"
-                className="px-2 py-1 rounded-lg bg-purple-900/80 hover:bg-purple-700 text-purple-100 text-xs font-bold border border-purple-600/50 flex items-center gap-0.5"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-                <span className="text-[10px]">左移</span>
-              </button>
-
-              {/* Move Right */}
-              <button
-                type="button"
-                onClick={() => handleMoveTileRight(selectedTileId)}
-                title="向右移一位"
-                className="px-2 py-1 rounded-lg bg-purple-900/80 hover:bg-purple-700 text-purple-100 text-xs font-bold border border-purple-600/50 flex items-center gap-0.5"
-              >
-                <span className="text-[10px]">右移</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-
-              {/* Move to end */}
-              <button
-                type="button"
-                onClick={() => handleMoveTileEnd(selectedTileId)}
-                title="移至手牌最右侧"
-                className="p-1 rounded-lg bg-purple-950/80 hover:bg-purple-800 text-purple-200 text-xs border border-purple-700/50 flex items-center gap-0.5"
-              >
-                <span className="text-[10px] hidden sm:inline">置尾</span>
-                <ChevronsRight className="w-3.5 h-3.5" />
-              </button>
-
-              {/* Discard if my turn */}
-              {isMyTurn && (
-                <button
-                  type="button"
-                  onClick={handleDiscardSelected}
-                  className="px-3 py-1 rounded-lg bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-600 hover:to-yellow-500 text-amber-950 text-[11px] font-black shadow-md flex items-center gap-1 ml-1 animate-bounce"
-                >
-                  <span>🀄 出牌</span>
-                </button>
-              )}
-
-              {/* Cancel selection */}
-              <button
-                type="button"
-                onClick={() => setSelectedTileId(null)}
-                className="p-1 text-slate-400 hover:text-white ml-1"
-                title="取消选中"
-              >
-                ✕
-              </button>
-            </div>
-          )}
+          {/* Selected Tile Floating Action Modal (立即打出 + 移位 + 牌面信息) */}
+          {selectedTileId && (() => {
+            const selectedTile = localHand.find(t => t.id === selectedTileId);
+            if (!selectedTile) return null;
+            return (
+              <DiscardConfirmModal
+                tile={selectedTile}
+                isMyTurn={isMyTurn}
+                countdown={countdown}
+                onConfirmDiscard={() => executeDiscard(selectedTile.id)}
+                onConfirm={() => executeDiscard(selectedTile.id)}
+                onMoveLeft={() => handleMoveTileLeft(selectedTile.id)}
+                onMoveRight={() => handleMoveTileRight(selectedTile.id)}
+                onMoveStart={() => handleMoveTileStart(selectedTile.id)}
+                onMoveEnd={() => handleMoveTileEnd(selectedTile.id)}
+                onCancel={() => setSelectedTileId(null)}
+              />
+            );
+          })()}
 
           {/* Standing Hand Tiles (Grouped View or Continuous View) + Declared Melds */}
           <div className="flex flex-wrap items-end justify-center gap-2 sm:gap-4 max-w-full pb-1 px-1">
