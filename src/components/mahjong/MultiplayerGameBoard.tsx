@@ -45,6 +45,9 @@ import { HuAuditModal } from './HuAuditModal';
 import { RulebookView } from './RulebookView';
 import { DiscardConfirmModal } from './DiscardConfirmModal';
 import { HandBuilder } from './HandBuilder';
+import { PlayerAvatar } from './PlayerAvatar';
+import { VoiceChatBar } from './VoiceChatBar';
+import { useVoiceChat } from '../../hooks/useVoiceChat';
 import {
   Volume2,
   VolumeX,
@@ -129,6 +132,27 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
   // Turn Countdown Remaining seconds
   const [countdown, setCountdown] = useState<number>(0);
   const [hasSubmittedClaim, setHasSubmittedClaim] = useState<boolean>(false);
+
+  // Voice Chat Status Integration
+  const {
+    isInVoice,
+    isSpeaking: myIsSpeaking,
+    isMicMuted: myIsMuted,
+    voiceMembers,
+  } = useVoiceChat();
+
+  const getPlayerVoiceStatus = (userId?: string) => {
+    if (!userId) return { isSpeaking: false, isMuted: false, inVoice: false };
+    if (userId === myProfile.userId) {
+      return { isSpeaking: myIsSpeaking, isMuted: myIsMuted, inVoice: isInVoice };
+    }
+    const member = voiceMembers.find(m => m.userId === userId);
+    return {
+      isSpeaking: !!member?.isSpeaking,
+      isMuted: !!member?.isMuted,
+      inVoice: !!member,
+    };
+  };
 
   // Network Multi-Carrier Latency & Transport Status
   const [networkPing, setNetworkPing] = useState<number>(() => socketService.getLatency() || 28);
@@ -653,6 +677,19 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
         {/* Right Tools Suite */}
         <div className="flex items-center gap-1.5">
 
+          {/* Real-time Voice Chat Bar */}
+          <VoiceChatBar
+            roomId={gameState.roomId}
+            userId={myProfile.userId}
+            userName={myProfile.name}
+            userAvatar={myProfile.avatar}
+            roomPlayers={gameState.players.map(p => ({
+              userId: p.userId,
+              name: p.name,
+              avatar: p.avatar,
+            }))}
+          />
+
           {/* Real-time Multi-Carrier Ping Badge */}
           <div
             className={`hidden sm:flex items-center gap-1 px-2 py-1 rounded-xl border text-[11px] font-mono font-bold transition-all ${
@@ -767,6 +804,7 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
           const { player, seatIdx } = relativePlayers[2];
           const isTurn = gameState.currentTurn === seatIdx;
           const isDealer = gameState.dealerIndex === seatIdx;
+          const voiceStatus = getPlayerVoiceStatus(player?.userId);
 
           return (
             <div className="flex flex-col items-center z-10">
@@ -775,11 +813,18 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
                   ? 'bg-amber-400/20 border-amber-400 shadow-md shadow-amber-400/20 animate-pulse'
                   : 'bg-black/40 border-purple-500/20'
               }`}>
-                <span className="text-lg sm:text-xl">{player?.avatar || '👤'}</span>
+                <PlayerAvatar
+                  avatar={player?.avatar}
+                  name={player?.name}
+                  size="sm"
+                  isSpeaking={voiceStatus.isSpeaking}
+                  isMuted={voiceStatus.isMuted}
+                  isInVoice={voiceStatus.inVoice}
+                />
                 <span className="font-bold text-xs text-slate-200 truncate max-w-[80px] sm:max-w-[100px]">
                   {player?.name || '对家'}
                 </span>
-                {isDealer && <Crown className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-amber-400" title="庄家" />}
+                {isDealer && <span title="庄家"><Crown className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-amber-400" /></span>}
                 <span className="text-[9px] sm:text-[10px] text-amber-300 font-mono">{SEAT_NAMES[seatIdx]}</span>
                 <span className="text-[9px] sm:text-[10px] text-slate-400">({player?.handCount ?? 13}张)</span>
               </div>
@@ -808,6 +853,7 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
               const { player, seatIdx } = relativePlayers[3];
               const isTurn = gameState.currentTurn === seatIdx;
               const isDealer = gameState.dealerIndex === seatIdx;
+              const voiceStatus = getPlayerVoiceStatus(player?.userId);
 
               return (
                 <div className={`p-1.5 sm:p-2 rounded-2xl border transition-all w-full max-w-[130px] ${
@@ -816,9 +862,16 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
                     : 'bg-black/40 border-purple-500/20'
                 }`}>
                   <div className="flex items-center gap-1">
-                    <span className="text-sm sm:text-lg">{player?.avatar || '👤'}</span>
+                    <PlayerAvatar
+                      avatar={player?.avatar}
+                      name={player?.name}
+                      size="sm"
+                      isSpeaking={voiceStatus.isSpeaking}
+                      isMuted={voiceStatus.isMuted}
+                      isInVoice={voiceStatus.inVoice}
+                    />
                     <span className="font-bold text-[10px] sm:text-xs text-slate-200 truncate max-w-[45px] sm:max-w-[70px]">{player?.name || '上家'}</span>
-                    {isDealer && <Crown className="w-2.5 sm:w-3 h-2.5 sm:h-3 text-amber-400" title="庄家" />}
+                    {isDealer && <span title="庄家"><Crown className="w-2.5 sm:w-3 h-2.5 sm:h-3 text-amber-400" /></span>}
                   </div>
                   <div className="text-[9px] sm:text-[10px] text-amber-300 mt-0.5 flex items-center justify-between">
                     <span>{SEAT_NAMES[seatIdx]}</span>
@@ -861,6 +914,7 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
               const { player, seatIdx } = relativePlayers[1];
               const isTurn = gameState.currentTurn === seatIdx;
               const isDealer = gameState.dealerIndex === seatIdx;
+              const voiceStatus = getPlayerVoiceStatus(player?.userId);
 
               return (
                 <div className={`p-1.5 sm:p-2 rounded-2xl border transition-all w-full max-w-[130px] ${
@@ -870,8 +924,15 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
                 }`}>
                   <div className="flex items-center gap-1 justify-end">
                     <span className="font-bold text-[10px] sm:text-xs text-slate-200 truncate max-w-[45px] sm:max-w-[70px]">{player?.name || '下家'}</span>
-                    <span className="text-sm sm:text-lg">{player?.avatar || '👤'}</span>
-                    {isDealer && <Crown className="w-2.5 sm:w-3 h-2.5 sm:h-3 text-amber-400" title="庄家" />}
+                    <PlayerAvatar
+                      avatar={player?.avatar}
+                      name={player?.name}
+                      size="sm"
+                      isSpeaking={voiceStatus.isSpeaking}
+                      isMuted={voiceStatus.isMuted}
+                      isInVoice={voiceStatus.inVoice}
+                    />
+                    {isDealer && <span title="庄家"><Crown className="w-2.5 sm:w-3 h-2.5 sm:h-3 text-amber-400" /></span>}
                   </div>
                   <div className="text-[9px] sm:text-[10px] text-amber-300 mt-0.5 flex items-center justify-between">
                     <span className="text-slate-400 text-[8px] sm:text-[9px]">{player?.handCount ?? 13}张</span>
@@ -895,6 +956,18 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
           {/* Action Prompt Banner & Self-Draw Hu CTA */}
           <div className="flex items-center justify-between w-full max-w-4xl px-2">
             <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-xl bg-black/40 border border-purple-500/20">
+                <PlayerAvatar
+                  avatar={myProfile.avatar}
+                  name={myProfile.name}
+                  size="xs"
+                  isSpeaking={myIsSpeaking}
+                  isMuted={myIsMuted}
+                  isInVoice={isInVoice}
+                />
+                <span className="text-[11px] font-bold text-slate-200 truncate max-w-[70px]">{myProfile.name}</span>
+              </div>
+
               <span className={`px-2.5 py-1 rounded-xl text-xs font-bold flex items-center gap-1.5 ${
                 isMyTurn
                   ? 'bg-amber-500 text-amber-950 font-black animate-pulse shadow-md'
@@ -1162,8 +1235,9 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
           {/* Chat Feed */}
           <div className="h-28 overflow-y-auto space-y-1 p-2 bg-black/40 rounded-xl border border-white/5 text-xs">
             {chatMessages.map(msg => (
-              <div key={msg.id} className="text-slate-200">
-                <span className="text-amber-400 font-bold">{msg.avatar} {msg.senderName}:</span>{' '}
+              <div key={msg.id} className="text-slate-200 flex items-center gap-1 flex-wrap">
+                <PlayerAvatar avatar={msg.avatar} name={msg.senderName} size="xs" />
+                <span className="text-amber-400 font-bold">{msg.senderName}:</span>{' '}
                 <span>{msg.text}</span>
               </div>
             ))}
@@ -1201,8 +1275,8 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
       {/* Hand Organizer Modal */}
       {isOrganizerOpen && (
         <HandOrganizerModal
+          isOpen={isOrganizerOpen}
           hand={localHand}
-          melds={myPlayer?.melds || []}
           onClose={() => setIsOrganizerOpen(false)}
           onApplyNewHand={newHand => {
             setLocalHand(newHand);

@@ -18,6 +18,9 @@ import {
 } from 'lucide-react';
 import { MultiplayerGameState, OnlinePlayer, ChatMessage } from '../../types/multiplayer';
 import { socketService, getLocalUserProfile } from '../../services/socketService';
+import { useVoiceChat } from '../../hooks/useVoiceChat';
+import { PlayerAvatar } from './PlayerAvatar';
+import { VoiceChatBar } from './VoiceChatBar';
 
 interface MultiplayerRoomWaitingProps {
   gameState: MultiplayerGameState;
@@ -42,6 +45,26 @@ export const MultiplayerRoomWaiting: React.FC<MultiplayerRoomWaitingProps> = ({
   const myProfile = getLocalUserProfile();
   const myPlayer = gameState.players.find(p => p?.userId === myProfile.userId);
   const isHost = myPlayer?.isHost ?? false;
+
+  const {
+    isInVoice,
+    isSpeaking: myIsSpeaking,
+    isMicMuted: myIsMuted,
+    voiceMembers,
+  } = useVoiceChat();
+
+  const getPlayerVoiceStatus = (userId?: string) => {
+    if (!userId) return { isSpeaking: false, isMuted: false, inVoice: false };
+    if (userId === myProfile.userId) {
+      return { isSpeaking: myIsSpeaking, isMuted: myIsMuted, inVoice: isInVoice };
+    }
+    const member = voiceMembers.find(m => m.userId === userId);
+    return {
+      isSpeaking: !!member?.isSpeaking,
+      isMuted: !!member?.isMuted,
+      inVoice: !!member,
+    };
+  };
 
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
   const [chatInput, setChatInput] = useState<string>('');
@@ -156,6 +179,19 @@ export const MultiplayerRoomWaiting: React.FC<MultiplayerRoomWaitingProps> = ({
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
+          {/* Online Real-Time Voice Chat Bar */}
+          <VoiceChatBar
+            roomId={gameState.roomId}
+            userId={myProfile.userId}
+            userName={myProfile.name}
+            userAvatar={myProfile.avatar}
+            roomPlayers={gameState.players.filter((p): p is OnlinePlayer => p !== null).map(p => ({
+              userId: p.userId,
+              name: p.name,
+              avatar: p.avatar,
+            }))}
+          />
+
           {isHost && hasEmptySeats && (
             <button
               type="button"
@@ -244,30 +280,41 @@ export const MultiplayerRoomWaiting: React.FC<MultiplayerRoomWaitingProps> = ({
               </div>
 
               {/* Player Body / Empty Seat */}
-              {player ? (
-                <div className="flex items-center gap-3 my-2">
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-700 p-0.5 shadow-md flex items-center justify-center text-2xl">
-                    <div className="w-full h-full bg-[#180E29] rounded-2xl flex items-center justify-center">
-                      {player.avatar}
+              {player ? (() => {
+                const voiceStatus = getPlayerVoiceStatus(player.userId);
+                return (
+                  <div className="flex items-center gap-3 my-2">
+                    <div className="rounded-2xl bg-gradient-to-br from-amber-400 to-amber-700 p-0.5 shadow-md flex items-center justify-center">
+                      <PlayerAvatar
+                        avatar={player.avatar}
+                        name={player.name}
+                        size="lg"
+                        isSpeaking={voiceStatus.isSpeaking}
+                        isMuted={voiceStatus.isMuted}
+                        isInVoice={voiceStatus.inVoice}
+                      />
                     </div>
-                  </div>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="font-black text-sm text-slate-100 truncate flex items-center gap-1.5">
-                      <span>{player.name}</span>
-                      {isMe && <span className="text-[10px] text-amber-400 font-normal">(你)</span>}
-                    </div>
-                    <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5">
-                      <span className="font-mono text-amber-300">{player.score}分</span>
-                      {player.isConnected ? (
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                      ) : (
-                        <span className="text-red-400 text-[10px]">离线</span>
-                      )}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-black text-sm text-slate-100 truncate flex items-center gap-1.5">
+                        <span>{player.name}</span>
+                        {isMe && <span className="text-[10px] text-amber-400 font-normal">(你)</span>}
+                      </div>
+                      <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5">
+                        <span className="font-mono text-amber-300">{player.score}分</span>
+                        {player.isConnected ? (
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        ) : (
+                          <span className="text-red-400 text-[10px]">离线</span>
+                        )}
+                        {voiceStatus.inVoice && (
+                          <span className="text-[10px] text-emerald-400 font-sans">· 在线语音</span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ) : (
+                );
+              })() : (
                 <div className="my-auto py-3 text-center space-y-2">
                   <div className="text-xs text-slate-500 font-medium">空闲席位</div>
                   <button
@@ -409,13 +456,14 @@ export const MultiplayerRoomWaiting: React.FC<MultiplayerRoomWaitingProps> = ({
             chatMessages.map(msg => (
               <div
                 key={msg.id}
-                className={`p-1.5 rounded-xl ${
+                className={`p-1.5 rounded-xl flex items-center gap-1.5 flex-wrap ${
                   msg.isSystem
                     ? 'bg-amber-950/40 text-amber-300 border border-amber-500/20'
                     : 'bg-white/5 text-slate-200'
                 }`}
               >
-                <span className="font-bold mr-1 text-slate-400">{msg.avatar} {msg.senderName}:</span>
+                <PlayerAvatar avatar={msg.avatar} name={msg.senderName} size="xs" />
+                <span className="font-bold text-slate-400">{msg.senderName}:</span>
                 <span className={msg.type === 'shout' ? 'text-amber-300 font-bold' : ''}>{msg.text}</span>
               </div>
             ))

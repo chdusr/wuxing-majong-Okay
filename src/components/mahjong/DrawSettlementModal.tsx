@@ -1,6 +1,7 @@
 import React from 'react';
 import { Player } from '../../types/mahjong';
 import { OnlinePlayer } from '../../types/multiplayer';
+import { PlayerAvatar } from './PlayerAvatar';
 import { RefreshCw, ChevronRight, Wind, Award, Users } from 'lucide-react';
 
 interface DrawSettlementModalProps {
@@ -59,7 +60,7 @@ export const DrawSettlementModal: React.FC<DrawSettlementModalProps> = ({
                   className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-white/5 text-xs"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-base">{p.avatar || '👤'}</span>
+                    <PlayerAvatar avatar={p.avatar} name={p.name} size="xs" />
                     <span className="font-bold text-slate-200">{p.name}</span>
                     {isDealer && (
                       <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono text-[10px] border border-amber-500/40">

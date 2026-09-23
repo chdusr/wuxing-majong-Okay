@@ -4,6 +4,7 @@ import { HuResult, MahjongTileData, Player } from '../../types/mahjong';
 import { MahjongTile } from './MahjongTile';
 import { checkThreeTilesKan } from '../../utils/mahjongRules';
 import { Trophy, Sparkles, RefreshCw, ChevronRight, Award, Flame } from 'lucide-react';
+import { PlayerAvatar } from './PlayerAvatar';
 
 interface HuCelebrationModalProps {
   isOpen: boolean;
@@ -100,6 +101,7 @@ export const HuCelebrationModal: React.FC<HuCelebrationModalProps> = ({
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
           </div>
           <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center justify-center gap-2">
+            <PlayerAvatar avatar={winner.avatar} name={winner.name} size="md" />
             <span>{winner.name}</span>
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-yellow-400">
               胡牌大胜！

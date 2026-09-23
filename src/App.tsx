@@ -78,6 +78,19 @@ export default function App() {
         {activeTab === 'builder' && <HandBuilder />}
 
         {activeTab === 'quiz' && <QuizChallenge />}
+
+        {/* 网站底部ICP备案信息 */}
+        <footer className="mt-8 pt-4 pb-2 border-t border-purple-500/10 flex flex-col items-center justify-center text-center">
+          <a
+            href="https://beian.miit.gov.cn"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-slate-400 hover:text-amber-400 transition-colors tracking-wide py-1 px-3 rounded hover:bg-white/5 inline-flex items-center gap-1.5"
+            title="工业和信息化部政务服务平台 ICP 备案查询"
+          >
+            <span>沪ICP备2026046347号-1</span>
+          </a>
+        </footer>
       </main>
 
       {/* iOS Bottom Navigation Bar */}

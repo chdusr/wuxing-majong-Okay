@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Users,
   Plus,
@@ -26,6 +26,9 @@ import {
   Copy,
   Check,
   Network,
+  Upload,
+  Image as ImageIcon,
+  Trash2,
 } from 'lucide-react';
 import { RoomListItem, RoomSettings } from '../../types/multiplayer';
 import {
@@ -44,6 +47,8 @@ import {
   resetServerUrl,
   CarrierSpeedTestResult,
 } from '../../services/socketService';
+import { PlayerAvatar } from './PlayerAvatar';
+import { compressAvatarImage, validateImageFile } from '../../utils/imageUtils';
 
 interface MultiplayerLobbyProps {
   onJoinRoom: (roomId: string, state?: any) => void;
@@ -63,6 +68,9 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
   const [isEditingProfile, setIsEditingProfile] = useState<boolean>(false);
   const [tempName, setTempName] = useState<string>(userProfile.name);
   const [tempAvatar, setTempAvatar] = useState<string>(userProfile.avatar);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState<boolean>(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   const [rooms, setRooms] = useState<RoomListItem[]>([]);
   const [isLoadingRooms, setIsLoadingRooms] = useState<boolean>(false);
@@ -199,6 +207,27 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
     };
   }, []);
 
+  const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarError(null);
+    const validation = validateImageFile(file);
+    if (!validation.valid) {
+      setAvatarError(validation.error || '图片文件格式不正确');
+      return;
+    }
+    try {
+      setIsUploadingAvatar(true);
+      const dataUrl = await compressAvatarImage(file, 128, 0.85);
+      setTempAvatar(dataUrl);
+    } catch (err: any) {
+      setAvatarError(err.message || '图片处理失败');
+    } finally {
+      setIsUploadingAvatar(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
   const handleSaveProfile = () => {
     if (!tempName.trim()) return;
     const updated = {
@@ -325,9 +354,9 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
         {/* User Info */}
         <div className="flex items-center gap-3.5 w-full sm:w-auto">
           <div className="relative">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-700 p-0.5 shadow-lg flex items-center justify-center text-3xl">
-              <div className="w-full h-full bg-[#1A102E] rounded-2xl flex items-center justify-center">
-                {userProfile.avatar}
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-700 p-0.5 shadow-lg flex items-center justify-center">
+              <div className="w-full h-full bg-[#1A102E] rounded-2xl flex items-center justify-center overflow-hidden">
+                <PlayerAvatar avatar={userProfile.avatar} size="lg" />
               </div>
             </div>
             <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-[#1A102E] flex items-center justify-center">
@@ -606,18 +635,69 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
       {isEditingProfile && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
           <div className="w-full max-w-sm bg-[#1C1230] border border-purple-500/40 rounded-3xl p-5 shadow-2xl space-y-4">
-            <h3 className="text-base font-black text-amber-300">个性名号与头像设置</h3>
+            <div className="flex items-center justify-between border-b border-white/10 pb-2">
+              <h3 className="text-base font-black text-amber-300">个性名号与头像设置</h3>
+              <button
+                type="button"
+                onClick={() => setIsEditingProfile(false)}
+                className="text-slate-400 hover:text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Current Avatar Preview & Custom Upload Box */}
+            <div className="p-3 rounded-2xl bg-black/40 border border-purple-500/20 flex items-center gap-3.5">
+              <PlayerAvatar avatar={tempAvatar} size="lg" />
+              <div className="flex-1 space-y-1">
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarFileChange}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => avatarInputRef.current?.click()}
+                    disabled={isUploadingAvatar}
+                    className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-600 hover:to-indigo-600 text-white font-bold text-xs shadow transition flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-purple-200" />
+                    <span>{isUploadingAvatar ? '裁剪压缩中...' : '上传自定义图片'}</span>
+                  </button>
+
+                  {tempAvatar && (tempAvatar.startsWith('data:image') || tempAvatar.startsWith('http')) && (
+                    <button
+                      type="button"
+                      onClick={() => setTempAvatar(AVATAR_OPTIONS[0])}
+                      className="p-1.5 rounded-xl bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 border border-white/10 transition"
+                      title="清除自定义图片，使用默认道象"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-400">
+                  支持 JPG/PNG/WebP，自动裁切为圆头像
+                </p>
+                {avatarError && (
+                  <p className="text-[10px] text-rose-400 font-bold">{avatarError}</p>
+                )}
+              </div>
+            </div>
             
             {/* Avatar Selector */}
             <div>
-              <label className="text-xs text-slate-400 mb-2 block font-bold">选择五行道象头像：</label>
-              <div className="grid grid-cols-5 gap-2 max-h-40 overflow-y-auto p-1 bg-black/30 rounded-2xl border border-white/5">
+              <label className="text-xs text-slate-400 mb-1.5 block font-bold">或选择五行道象头像：</label>
+              <div className="grid grid-cols-5 gap-2 max-h-32 overflow-y-auto p-1.5 bg-black/30 rounded-2xl border border-white/5">
                 {AVATAR_OPTIONS.map(av => (
                   <button
                     key={av}
                     type="button"
                     onClick={() => setTempAvatar(av)}
-                    className={`w-10 h-10 rounded-xl text-xl flex items-center justify-center transition-all ${
+                    className={`w-9 h-9 rounded-xl text-lg flex items-center justify-center transition-all ${
                       tempAvatar === av
                         ? 'bg-amber-400 text-black scale-110 shadow-md ring-2 ring-amber-300'
                         : 'bg-white/5 hover:bg-white/10'

@@ -56,6 +56,18 @@ export const IosTabBar: React.FC<IosTabBarProps> = ({
           );
         })}
       </div>
+
+      {/* 网站ICP备案号 (工信部合规要求：底部中间位置) */}
+      <div className="text-center pt-1.5 pb-0.5">
+        <a
+          href="https://beian.miit.gov.cn"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[10px] text-slate-500 hover:text-amber-400 transition-colors tracking-wider inline-block"
+        >
+          沪ICP备2026046347号-1
+        </a>
+      </div>
     </div>
   );
 };

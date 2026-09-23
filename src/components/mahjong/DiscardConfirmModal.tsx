@@ -89,7 +89,7 @@ export const DiscardConfirmModal: React.FC<DiscardConfirmModalProps> = ({
                   {tile.elementName}行
                 </span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-purple-950/80 text-purple-300 border border-purple-600/40">
-                  {tile.category === 'tiangan' ? '天干' : tile.category === 'dizhi' ? '地支' : '五行元牌'}
+                  {tile.category === 'stem' ? '天干' : tile.category === 'branch' ? '地支' : '五行元牌'}
                 </span>
               </div>
               <span className="text-[10px] text-slate-300 mt-0.5">

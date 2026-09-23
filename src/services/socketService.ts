@@ -279,7 +279,7 @@ class SocketService {
         reconnectionDelayMax: 3000,
         randomizationFactor: 0.3,
         timeout: 12000,
-        transports: ['websocket', 'polling'] as ('websocket' | 'polling')[],
+        transports: ['polling', 'websocket'] as ('polling' | 'websocket')[],
       };
 
       if (serverUrl) {
@@ -303,6 +303,11 @@ class SocketService {
     s.on('connect_error', () => {
       this.isConnecting = false;
       this.consecutiveErrors++;
+    });
+
+    s.on('error', (err: any) => {
+      // Gracefully log without uncaught rejections
+      console.warn('[Socket] transport event:', err?.message || err);
     });
 
     s.on('disconnect', () => {

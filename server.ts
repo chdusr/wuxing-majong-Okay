@@ -1,4 +1,5 @@
 import express from 'express';
+import fs from 'fs';
 import http from 'http';
 import https from 'https';
 import dns from 'dns';
@@ -18,7 +19,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new SocketIOServer(server, {
   cors: { origin: '*' },
-  transports: ['websocket', 'polling'],
+  transports: ['polling', 'websocket'],
   pingTimeout: 12000,
   pingInterval: 8000,
   connectTimeout: 15000,
@@ -67,6 +68,22 @@ app.get('/api/health', (req, res) => {
 app.get('/api/mahjong/rooms', (req, res) => {
   roomManager.cleanupEmptyRooms();
   res.json({ rooms: roomManager.getPublicRooms() });
+});
+
+// Download/View Comprehensive Test Report PDF
+app.get(['/api/download-test-report', '/api/test-report.pdf'], (req, res) => {
+  const pdfPath = path.join(process.cwd(), 'public', '五行麻将_全规则功能性与压力测试报告.pdf');
+  if (fs.existsSync(pdfPath)) {
+    const isDownload = req.query.download === '1' || req.path.includes('download');
+    res.setHeader('Content-Type', 'application/pdf');
+    if (isDownload) {
+      res.setHeader('Content-Disposition', 'attachment; filename="wuxing_mahjong_test_report.pdf"');
+    } else {
+      res.setHeader('Content-Disposition', 'inline; filename="wuxing_mahjong_test_report.pdf"');
+    }
+    return res.sendFile(pdfPath);
+  }
+  return res.status(404).json({ error: 'PDF report not found' });
 });
 
 // Multi-Carrier Latency & Network Ping Endpoint
@@ -372,6 +389,17 @@ ${userQuestion ? `- 用户特定求问：${userQuestion}` : ''}
     res.status(500).json({ error: err.message || 'Internal Server Error' });
   }
 });
+
+// Active Voice Rooms tracking
+interface ServerVoiceMember {
+  userId: string;
+  name: string;
+  avatar?: string;
+  isSpeaking: boolean;
+  isMuted: boolean;
+  socketId: string;
+}
+const activeVoiceRooms = new Map<string, Map<string, ServerVoiceMember>>();
 
 // Socket.IO Real-Time Multiplayer Mahjong Handlers
 io.on('connection', socket => {
@@ -758,9 +786,114 @@ io.on('connection', socket => {
     }
   });
 
+  // Real-Time Voice Chat Handlers (实时在线语音聊天)
+  socket.on('voice:join', (data: { roomId: string; userId: string; name: string; avatar?: string }) => {
+    currentRoomId = currentRoomId || data.roomId;
+    currentUserId = currentUserId || data.userId;
+    const voiceRoom = `voice:${data.roomId}`;
+    socket.join(voiceRoom);
+
+    // Track active voice members in room
+    let roomMembers = activeVoiceRooms.get(data.roomId);
+    if (!roomMembers) {
+      roomMembers = new Map();
+      activeVoiceRooms.set(data.roomId, roomMembers);
+    }
+    roomMembers.set(data.userId, {
+      userId: data.userId,
+      name: data.name,
+      avatar: data.avatar,
+      isSpeaking: false,
+      isMuted: false,
+      socketId: socket.id,
+    });
+
+    // 1. Send all currently active other members to the joining user
+    const currentMembers = Array.from(roomMembers.values())
+      .filter(m => m.userId !== data.userId)
+      .map(m => ({
+        userId: m.userId,
+        name: m.name,
+        avatar: m.avatar,
+        isSpeaking: m.isSpeaking,
+        isMuted: m.isMuted,
+      }));
+    socket.emit('voice:sync_members', currentMembers);
+
+    // 2. Broadcast join event to all other members in this voice room
+    socket.to(voiceRoom).emit('voice:user_joined', {
+      userId: data.userId,
+      name: data.name,
+      avatar: data.avatar,
+    });
+  });
+
+  socket.on('voice:leave', (data: { roomId: string; userId: string }) => {
+    const voiceRoom = `voice:${data.roomId}`;
+    socket.leave(voiceRoom);
+
+    const roomMembers = activeVoiceRooms.get(data.roomId);
+    if (roomMembers) {
+      roomMembers.delete(data.userId);
+      if (roomMembers.size === 0) {
+        activeVoiceRooms.delete(data.roomId);
+      }
+    }
+
+    socket.to(voiceRoom).emit('voice:user_left', {
+      userId: data.userId,
+    });
+  });
+
+  socket.on('voice:speaking', (data: { roomId: string; userId: string; isSpeaking: boolean }) => {
+    const roomMembers = activeVoiceRooms.get(data.roomId);
+    const member = roomMembers?.get(data.userId);
+    if (member) {
+      member.isSpeaking = data.isSpeaking;
+    }
+
+    socket.to(`voice:${data.roomId}`).emit('voice:speaking', {
+      userId: data.userId,
+      isSpeaking: data.isSpeaking,
+    });
+  });
+
+  socket.on('voice:mute_status', (data: { roomId: string; userId: string; isMuted: boolean }) => {
+    const roomMembers = activeVoiceRooms.get(data.roomId);
+    const member = roomMembers?.get(data.userId);
+    if (member) {
+      member.isMuted = data.isMuted;
+    }
+
+    socket.to(`voice:${data.roomId}`).emit('voice:mute_status', {
+      userId: data.userId,
+      isMuted: data.isMuted,
+    });
+  });
+
+  socket.on('voice:data', (data: { roomId: string; userId: string; audioData: string; mimeType: string; sentAt?: number }) => {
+    socket.to(`voice:${data.roomId}`).emit('voice:data', {
+      userId: data.userId,
+      audioData: data.audioData,
+      mimeType: data.mimeType,
+      sentAt: data.sentAt,
+    });
+  });
+
   // Disconnect
   socket.on('disconnect', () => {
     if (currentRoomId) {
+      const voiceRoom = `voice:${currentRoomId}`;
+      if (currentUserId) {
+        const roomMembers = activeVoiceRooms.get(currentRoomId);
+        if (roomMembers) {
+          roomMembers.delete(currentUserId);
+          if (roomMembers.size === 0) {
+            activeVoiceRooms.delete(currentRoomId);
+          }
+        }
+        socket.to(voiceRoom).emit('voice:user_left', { userId: currentUserId });
+      }
       const room = roomManager.getRoom(currentRoomId);
       if (room) {
         room.handleDisconnect(socket.id);

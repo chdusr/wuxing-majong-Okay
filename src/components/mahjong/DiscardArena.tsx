@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { MahjongTileData, ElementType } from '../../types/mahjong';
 import { MahjongTile } from './MahjongTile';
+import { PlayerAvatar } from './PlayerAvatar';
 import { ELEMENT_COLORS } from '../../utils/mahjongRules';
 import {
   Compass,
@@ -240,7 +241,7 @@ export const DiscardArena: React.FC<DiscardArenaProps> = ({
             {/* 1. North Player Discards (对家堂池) */}
             <div className="w-full min-w-0 flex flex-col items-center">
               <div className="flex items-center gap-1 text-[8px] sm:text-[10px] text-slate-400 mb-0.5 truncate max-w-full">
-                <span className="text-xs">{oppPlayer?.avatar}</span>
+                <PlayerAvatar avatar={oppPlayer?.avatar} name={oppPlayer?.name} size="xs" />
                 <span className="text-slate-300 font-semibold truncate max-w-[60px] sm:max-w-[100px]">{oppPlayer?.name}</span>
                 <span className="text-amber-400/80 font-mono">【{oppPlayer?.seatName || '北'}】</span>
                 <span className="text-[8px] sm:text-[9px] text-slate-500">({oppPlayer?.discards.length ?? 0}张)</span>
@@ -277,7 +278,7 @@ export const DiscardArena: React.FC<DiscardArenaProps> = ({
               {/* Left Player Discards (上家堂池) */}
               <div className="col-span-3 min-w-0 flex flex-col items-center">
                 <div className="flex items-center gap-0.5 text-[8px] sm:text-[10px] text-slate-400 mb-0.5 truncate max-w-full">
-                  <span className="text-[10px] sm:text-xs">{leftPlayer?.avatar}</span>
+                  <PlayerAvatar avatar={leftPlayer?.avatar} name={leftPlayer?.name} size="xs" />
                   <span className="text-slate-300 font-semibold truncate max-w-[26px] sm:max-w-[45px]">{leftPlayer?.name}</span>
                   <span className="text-amber-400/80 font-mono text-[7px] sm:text-[9px]">【{leftPlayer?.seatName?.slice(0, 1) || '西'}】</span>
                 </div>
@@ -374,7 +375,7 @@ export const DiscardArena: React.FC<DiscardArenaProps> = ({
               {/* Right Player Discards (下家堂池) */}
               <div className="col-span-3 min-w-0 flex flex-col items-center">
                 <div className="flex items-center gap-0.5 text-[8px] sm:text-[10px] text-slate-400 mb-0.5 truncate max-w-full">
-                  <span className="text-[10px] sm:text-xs">{rightPlayer?.avatar}</span>
+                  <PlayerAvatar avatar={rightPlayer?.avatar} name={rightPlayer?.name} size="xs" />
                   <span className="text-slate-300 font-semibold truncate max-w-[26px] sm:max-w-[45px]">{rightPlayer?.name}</span>
                   <span className="text-amber-400/80 font-mono text-[7px] sm:text-[9px]">【{rightPlayer?.seatName?.slice(0, 1) || '东'}】</span>
                 </div>
@@ -409,7 +410,7 @@ export const DiscardArena: React.FC<DiscardArenaProps> = ({
             {/* 3. South Player Discards (本家堂池) */}
             <div className="w-full min-w-0 flex flex-col items-center">
               <div className="flex items-center gap-1 text-[8px] sm:text-[10px] text-slate-400 mb-0.5 truncate max-w-full">
-                <span className="text-xs">{selfPlayer?.avatar}</span>
+                <PlayerAvatar avatar={selfPlayer?.avatar} name={selfPlayer?.name} size="xs" />
                 <span className="text-emerald-300 font-bold truncate max-w-[60px] sm:max-w-[100px]">{selfPlayer?.name || '我方'} (本家)</span>
                 <span className="text-amber-400/80 font-mono">【{selfPlayer?.seatName || '南'}】</span>
                 <span className="text-[8px] sm:text-[9px] text-slate-500">({selfPlayer?.discards.length ?? 0}张)</span>

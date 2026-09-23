@@ -1,20 +1,50 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>五行麻将</title>
     <meta name="description" content="基于传统五行与干支冲合刑会规则的108张五行麻将应用，支持多人全服实时联网对战、单机练习与智能理牌" />
-    <meta name="theme-color" content="#121214" />
+    <meta name="theme-color" content="#0E0A17" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta property="og:title" content="五行麻将" />
     <meta property="og:description" content="基于传统五行与干支冲合刑会规则的108张五行麻将应用，支持多人全服实时联网对战、单机练习与智能理牌" />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        background-color: #0E0A17;
+        color: #F8FAFC;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      }
+    </style>
   </head>
-  <body>
-    <div id="root"></div>
+  <body class="bg-[#0E0A17] text-slate-100 min-h-screen">
+    <div id="root">
+      <div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #0E0A17; color: #F8FAFC; padding: 20px; text-align: center;">
+        <div style="font-size: 32px; font-weight: 800; color: #F59E0B; margin-bottom: 12px; letter-spacing: 2px;">
+          🀄 五行麻将
+        </div>
+        <div style="font-size: 14px; color: #94A3B8;">
+          正在进入五行乾坤对局...
+        </div>
+        <div style="position: absolute; bottom: 16px; left: 0; right: 0; text-align: center; font-size: 12px;">
+          <a href="https://beian.miit.gov.cn" target="_blank" rel="noopener noreferrer" style="color: #64748B; text-decoration: none;">
+            沪ICP备2026046347号-1
+          </a>
+        </div>
+      </div>
+    </div>
+    <noscript>
+      <div style="position: fixed; bottom: 8px; left: 0; right: 0; text-align: center; font-size: 12px;">
+        <a href="https://beian.miit.gov.cn" target="_blank" rel="noopener noreferrer" style="color: #64748B; text-decoration: none;">
+          沪ICP备2026046347号-1
+        </a>
+      </div>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
