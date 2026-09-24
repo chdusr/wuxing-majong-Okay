@@ -675,7 +675,7 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
         </div>
 
         {/* Right Tools Suite */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
 
           {/* Real-time Voice Chat Bar */}
           <VoiceChatBar
@@ -692,42 +692,41 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
 
           {/* Real-time Multi-Carrier Ping Badge */}
           <div
-            className={`hidden sm:flex items-center gap-1 px-2 py-1 rounded-xl border text-[11px] font-mono font-bold transition-all ${
+            className={`hidden md:flex items-center gap-1 px-2 py-1 rounded-xl border text-[11px] font-mono font-bold transition-all ${
               networkPing < 70
                 ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300'
                 : networkPing < 150
                 ? 'bg-amber-950/60 border-amber-500/40 text-amber-300'
                 : 'bg-rose-950/60 border-rose-500/40 text-rose-300'
             }`}
-            title={`当前网络延迟: ${networkPing}ms | 协议: ${networkTransport} | 支持电信/联通/移动/BGP三网融合与出牌双通道抗丢包`}
+            title={`当前网络延迟: ${networkPing}ms | 协议: ${networkTransport} | 支持三网融合与出牌抗丢包`}
           >
             <span className={`w-1.5 h-1.5 rounded-full ${
               networkPing < 70 ? 'bg-emerald-400 animate-pulse' : networkPing < 150 ? 'bg-amber-400' : 'bg-rose-400'
             }`} />
             <span>{networkPing}ms</span>
-            <span className="text-[10px] text-slate-400 font-sans hidden md:inline">三网加速</span>
           </div>
           
           {/* Quick Rules Modal Trigger */}
           <button
             type="button"
             onClick={() => setIsRulesModalOpen(true)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-purple-950/80 hover:bg-purple-900 border border-purple-500/40 text-purple-200 text-xs font-bold transition-colors"
+            className="flex items-center justify-center p-1.5 sm:px-2.5 sm:py-1 rounded-xl bg-purple-950/80 hover:bg-purple-900 border border-purple-500/40 text-purple-200 text-xs font-bold transition-colors"
             title="查看五行干支生克规则图谱"
           >
             <BookOpen className="w-3.5 h-3.5 text-purple-400" />
-            <span className="hidden sm:inline">规则图谱</span>
+            <span className="hidden md:inline ml-1">规则</span>
           </button>
 
           {/* Quick Hand Builder Tool Trigger */}
           <button
             type="button"
             onClick={() => setIsHandBuilderModalOpen(true)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-[#221538] hover:bg-[#2F1D4F] border border-amber-500/30 text-amber-300 text-xs font-bold transition-colors"
+            className="flex items-center justify-center p-1.5 sm:px-2.5 sm:py-1 rounded-xl bg-[#221538] hover:bg-[#2F1D4F] border border-amber-500/30 text-amber-300 text-xs font-bold transition-colors"
             title="打开手牌验算器，推演胡牌与番数"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden sm:inline">排盘验算</span>
+            <span className="hidden md:inline ml-1">验算</span>
           </button>
 
           {/* Sound Toggle */}
@@ -737,7 +736,7 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
             className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
             title="音效开关"
           >
-            {soundEnabled ? <Volume2 className="w-4 h-4 text-amber-400" /> : <VolumeX className="w-4 h-4" />}
+            {soundEnabled ? <Volume2 className="w-3.5 h-3.5 text-amber-400" /> : <VolumeX className="w-3.5 h-3.5" />}
           </button>
 
           {/* Live Chat Drawer */}
@@ -747,21 +746,21 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
             className="p-1.5 rounded-xl bg-purple-900/60 hover:bg-purple-800 text-purple-300 hover:text-white transition-colors relative"
             title="桌台发语"
           >
-            <MessageCircle className="w-4 h-4" />
+            <MessageCircle className="w-3.5 h-3.5" />
             {chatMessages.length > 0 && (
               <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
             )}
           </button>
 
-          {/* Leave Room Button */}
+          {/* Leave Room Button - Prominent and always visible */}
           <button
             type="button"
             onClick={onLeaveRoom}
-            className="px-2.5 py-1 rounded-xl bg-red-950/50 hover:bg-red-950 border border-red-500/30 text-red-300 text-[11px] font-bold transition-colors flex items-center gap-1"
-            title="离开当前对战桌台"
+            className="px-2 sm:px-2.5 py-1.5 rounded-xl bg-red-950/70 hover:bg-red-900 border border-red-500/50 text-red-200 hover:text-white text-[11px] font-bold transition-all flex items-center gap-1 shrink-0 ring-1 ring-red-500/20 active:scale-95 shadow-sm"
+            title="离开当前对战桌台并返回大厅"
           >
-            <LogOut className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">离桌</span>
+            <LogOut className="w-3.5 h-3.5 text-red-400" />
+            <span>退出</span>
           </button>
         </div>
       </div>

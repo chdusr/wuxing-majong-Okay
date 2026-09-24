@@ -53,6 +53,7 @@ export const VoiceChatBar: React.FC<VoiceChatBarProps> = ({
     voiceMembers,
     error,
     supported,
+    isListenOnly,
     joinVoice,
     leaveVoice,
     toggleMicMute,
@@ -138,10 +139,15 @@ export const VoiceChatBar: React.FC<VoiceChatBarProps> = ({
               title="查看语音成员与设置"
             >
               <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
-              <span className="hidden sm:inline">语音中</span>
+              <span className="hidden sm:inline">{isListenOnly ? '收听中' : '语音中'}</span>
               <span className="bg-emerald-500/30 text-emerald-300 px-1.5 py-0.2 rounded-full font-mono text-[10px]">
                 {activeVoiceCount}人
               </span>
+              {isListenOnly && (
+                <span className="hidden xs:inline-block px-1 py-0.5 rounded bg-blue-950/80 border border-blue-500/40 text-blue-300 text-[10px]">
+                  收听
+                </span>
+              )}
               {isExpanded ? (
                 <ChevronUp className="w-3 h-3 text-slate-400" />
               ) : (
@@ -153,16 +159,27 @@ export const VoiceChatBar: React.FC<VoiceChatBarProps> = ({
             <button
               type="button"
               onClick={toggleMicMute}
+              disabled={isListenOnly}
               className={`p-1.5 rounded-xl border transition-all flex items-center justify-center ${
-                isMicMuted
+                isListenOnly
+                  ? 'bg-slate-800/40 border-slate-700/50 text-slate-500 cursor-not-allowed'
+                  : isMicMuted
                   ? 'bg-rose-500/20 border-rose-500/60 text-rose-400 hover:bg-rose-500/30'
                   : isSpeaking
                   ? 'bg-emerald-500/30 border-emerald-400 text-emerald-300 ring-2 ring-emerald-400/40 animate-pulse'
                   : 'bg-white/5 border-white/10 text-slate-200 hover:bg-white/10'
               }`}
-              title={isMicMuted ? '点击取消静音' : '点击静音麦克风'}
+              title={
+                isListenOnly
+                  ? '当前处于收听模式，麦克风未开启'
+                  : isMicMuted
+                  ? '点击取消静音'
+                  : '点击静音麦克风'
+              }
             >
-              {isMicMuted ? (
+              {isListenOnly ? (
+                <Headphones className="w-3.5 h-3.5 text-blue-300" />
+              ) : isMicMuted ? (
                 <MicOff className="w-3.5 h-3.5" />
               ) : (
                 <Mic className="w-3.5 h-3.5" />

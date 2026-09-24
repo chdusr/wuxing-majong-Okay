@@ -2,7 +2,7 @@
  * Real-Time Voice Chat Service for Online Multiplayer Mahjong
  * Provides microphone input, VAD (Voice Activity Detection),
  * Push-To-Talk, audio streaming over Socket.IO, volume metering,
- * and audio playback with per-player volume control.
+ * and high-performance, low-latency audio playback with WeChat & Mobile WebKit optimizations.
  */
 
 import { socketService } from './socketService';
@@ -31,9 +31,15 @@ export interface VoiceState {
   voiceMembers: VoiceMember[];
   error: string | null;
   supported: boolean;
+  isListenOnly?: boolean; // 收听模式
 }
 
 type VoiceStateListener = (state: VoiceState) => void;
+
+interface PeerPlaybackChannel {
+  gainNode: GainNode;
+  nextPlayTime: number;
+}
 
 class VoiceService {
   private currentRoomId: string | null = null;
@@ -43,11 +49,17 @@ class VoiceService {
 
   private mediaStream: MediaStream | null = null;
   private mediaStreamSource: MediaStreamAudioSourceNode | null = null;
+  private scriptProcessor: ScriptProcessorNode | null = null;
   private echoGainNode: GainNode | null = null;
-  private mediaRecorder: MediaRecorder | null = null;
+  private masterGainNode: GainNode | null = null;
   private audioContext: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
   private animFrameId: number | null = null;
+
+  // PCM capture buffer
+  private pcmChunkBuffer: number[] = [];
+  private readonly TARGET_SAMPLE_RATE = 16000;
+  private readonly CHUNK_SAMPLE_COUNT = 3200; // ~200ms per packet at 16kHz
 
   private state: VoiceState = {
     isInVoice: false,
@@ -62,32 +74,74 @@ class VoiceService {
     isEchoTesting: false,
     voiceMembers: [],
     error: null,
-    supported: typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia,
+    supported: typeof window !== 'undefined',
+    isListenOnly: false,
   };
 
   private listeners: Set<VoiceStateListener> = new Set();
-  private peerAudios: Map<string, { audio: HTMLAudioElement; lastChunkTime: number }> = new Map();
+  private peerAudioNodes: Map<string, PeerPlaybackChannel> = new Map();
   private speakingTimers: Map<string, NodeJS.Timeout> = new Map();
-  private bestMimeType: string = '';
 
   constructor() {
-    this.detectBestMimeType();
+    this.initWeChatAndMobileAudioUnlock();
   }
 
-  private detectBestMimeType() {
-    if (typeof window === 'undefined' || typeof MediaRecorder === 'undefined') return;
-    const types = [
-      'audio/webm;codecs=opus',
-      'audio/webm',
-      'audio/ogg;codecs=opus',
-      'audio/mp4',
-    ];
-    for (const t of types) {
-      if (MediaRecorder.isTypeSupported(t)) {
-        this.bestMimeType = t;
-        break;
-      }
+  /**
+   * Register global user gesture listeners for WeChat and Mobile WebKit
+   * to unlock AudioContext and enable immediate sound playback.
+   */
+  private initWeChatAndMobileAudioUnlock() {
+    if (typeof window === 'undefined') return;
+
+    const unlock = () => {
+      this.unlockAudio();
+    };
+
+    const events = ['touchstart', 'touchend', 'click', 'pointerdown', 'keydown'];
+    events.forEach((evt) => {
+      window.addEventListener(evt, unlock, { passive: true, capture: true });
+    });
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('WeixinJSBridgeReady', unlock, { once: true });
     }
+  }
+
+  /**
+   * Unlock AudioContext explicitly on user gesture
+   */
+  public unlockAudio(): AudioContext | null {
+    try {
+      const ctx = this.getOrCreateAudioContext();
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+      // Play a 1-sample silent burst to prime hardware output pipeline
+      if (ctx.state === 'running' || ctx.state === 'suspended') {
+        const silentBuf = ctx.createBuffer(1, 1, 22050);
+        const src = ctx.createBufferSource();
+        src.buffer = silentBuf;
+        src.connect(ctx.destination);
+        src.start(0);
+      }
+      return ctx;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  private getOrCreateAudioContext(): AudioContext {
+    if (!this.audioContext || this.audioContext.state === 'closed') {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      this.audioContext = new AudioCtx();
+    }
+    if (!this.masterGainNode && this.audioContext) {
+      this.masterGainNode = this.audioContext.createGain();
+      // 1.5x amplification for mobile phone loudspeaker clarity in WeChat
+      this.masterGainNode.gain.value = 1.5;
+      this.masterGainNode.connect(this.audioContext.destination);
+    }
+    return this.audioContext;
   }
 
   public subscribe(listener: VoiceStateListener): () => void {
@@ -106,9 +160,17 @@ class VoiceService {
   }
 
   /**
-   * Connect and join voice chat for a given room
+   * Connect and join voice chat for a given room.
+   * If microphone is denied or unavailable, falls back to Listen-Only mode smoothly.
    */
-  public async joinVoice(roomId: string, userId: string, name: string, avatar: string = ''): Promise<boolean> {
+  public async joinVoice(
+    roomId: string,
+    userId: string,
+    name: string,
+    avatar: string = ''
+  ): Promise<boolean> {
+    this.unlockAudio();
+
     if (this.state.isInVoice && this.currentRoomId === roomId) {
       return true;
     }
@@ -122,80 +184,52 @@ class VoiceService {
     this.state.error = null;
     this.notify();
 
+    // Ensure AudioContext is ready for receiving peer audio
+    const ctx = this.getOrCreateAudioContext();
+    if (ctx.state === 'suspended') {
+      await ctx.resume().catch(() => {});
+    }
+
+    let micGranted = false;
+
     try {
       // 1. Request microphone access
-      if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error('当前浏览器不支持麦克风音频捕获，请使用现代浏览器');
-      }
+      if (navigator.mediaDevices?.getUserMedia) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+          });
+          this.mediaStream = stream;
+          micGranted = true;
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
+          // 2. Setup Web Audio Analyser & PCM ScriptProcessor
+          const source = ctx.createMediaStreamSource(stream);
+          this.mediaStreamSource = source;
 
-      this.mediaStream = stream;
+          this.analyser = ctx.createAnalyser();
+          this.analyser.fftSize = 256;
+          this.analyser.smoothingTimeConstant = 0.4;
+          source.connect(this.analyser);
+          this.startLevelMonitoring();
 
-      // 2. Setup Web Audio Analyser for VAD & level metering
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioCtx) {
-        this.audioContext = new AudioCtx();
-        if (this.audioContext.state === 'suspended') {
-          await this.audioContext.resume();
+          this.setupPCMStreaming(source, ctx.sampleRate);
+        } catch (micErr: any) {
+          console.warn('[VoiceService] Microphone access not granted, switching to listen mode:', micErr);
+          // Gracefully continue in Listen-Only mode so user can still hear others!
+          this.state.isListenOnly = true;
         }
-        const source = this.audioContext.createMediaStreamSource(stream);
-        this.mediaStreamSource = source;
-        this.analyser = this.audioContext.createAnalyser();
-        this.analyser.fftSize = 256;
-        this.analyser.smoothingTimeConstant = 0.4;
-        source.connect(this.analyser);
-        this.startLevelMonitoring();
+      } else {
+        this.state.isListenOnly = true;
       }
 
-      // 3. Setup MediaRecorder for streaming audio chunks
-      if (typeof MediaRecorder !== 'undefined') {
-        const options: MediaRecorderOptions = {};
-        if (this.bestMimeType) {
-          options.mimeType = this.bestMimeType;
-        }
-        this.mediaRecorder = new MediaRecorder(stream, options);
-
-        this.mediaRecorder.ondataavailable = async (event: BlobEvent) => {
-          if (!event.data || event.data.size === 0) return;
-          if (this.state.isMicMuted) return;
-
-          // Check if we should transmit
-          const shouldTransmit =
-            this.state.voiceMode === 'ptt' ? this.state.pttActive : this.state.isSpeaking;
-
-          if (!shouldTransmit) return;
-
-          try {
-            const base64 = await this.blobToBase64(event.data);
-            const socket = socketService.getSocket();
-            if (socket?.connected && this.currentRoomId && this.currentUserId) {
-              socket.emit('voice:data', {
-                roomId: this.currentRoomId,
-                userId: this.currentUserId,
-                audioData: base64,
-                mimeType: this.mediaRecorder?.mimeType || 'audio/webm',
-              });
-            }
-          } catch (e) {
-            // ignore chunk encoding error
-          }
-        };
-
-        // Slice every 280ms
-        this.mediaRecorder.start(280);
-      }
-
-      // 4. Setup socket listeners
+      // 3. Setup socket listeners
       this.attachSocketListeners();
 
-      // 5. Emit voice:join to server
+      // 4. Emit voice:join to server
       const socket = socketService.getSocket();
       if (socket) {
         socket.emit('voice:join', {
@@ -208,25 +242,107 @@ class VoiceService {
 
       this.state.isInVoice = true;
       this.state.isConnecting = false;
+      this.state.error = micGranted
+        ? null
+        : '已进入收听模式（麦克风未授权或受限，您可正常收听道友发言）';
       this.notify();
       return true;
     } catch (err: any) {
       console.warn('[VoiceService] Failed to join voice:', err);
-      let errMsg = '无法连接麦克风语音';
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        errMsg = '麦克风权限被拒绝，请在浏览器地址栏允许麦克风权限后重试';
-      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-        errMsg = '未检测到可用麦克风设备，请检查音频输入硬件';
-      } else if (err.message) {
-        errMsg = err.message;
-      }
-
       this.leaveVoice();
-      this.state.error = errMsg;
+      this.state.error = err.message || '无法连接语音房间';
       this.state.isConnecting = false;
       this.notify();
       return false;
     }
+  }
+
+  /**
+   * Setup PCM recording via ScriptProcessorNode for universal WeChat/iOS/Android compatibility.
+   */
+  private setupPCMStreaming(source: MediaStreamAudioSourceNode, sampleRate: number) {
+    if (!this.audioContext) return;
+
+    // Buffer size 2048 gives low-latency processing without stutter
+    const processor = this.audioContext.createScriptProcessor(2048, 1, 1);
+    this.scriptProcessor = processor;
+    this.pcmChunkBuffer = [];
+
+    processor.onaudioprocess = (e: AudioProcessingEvent) => {
+      if (this.state.isMicMuted || this.state.isListenOnly) {
+        this.pcmChunkBuffer = [];
+        return;
+      }
+
+      const shouldTransmit =
+        this.state.voiceMode === 'ptt' ? this.state.pttActive : this.state.isSpeaking;
+
+      if (!shouldTransmit) {
+        this.pcmChunkBuffer = [];
+        return;
+      }
+
+      const input = e.inputBuffer.getChannelData(0);
+      const downsampled = this.downsampleTo16kHz(input, sampleRate);
+
+      // Accumulate samples
+      for (let i = 0; i < downsampled.length; i++) {
+        this.pcmChunkBuffer.push(downsampled[i]);
+      }
+
+      // When chunk is full (~200ms of audio), send packet
+      if (this.pcmChunkBuffer.length >= this.CHUNK_SAMPLE_COUNT) {
+        const samplesToSend = this.pcmChunkBuffer.splice(0, this.CHUNK_SAMPLE_COUNT);
+        const int16Array = new Int16Array(samplesToSend.length);
+        for (let i = 0; i < samplesToSend.length; i++) {
+          const s = Math.max(-1, Math.min(1, samplesToSend[i]));
+          int16Array[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+        }
+
+        const base64 = this.int16ToBase64(int16Array);
+        const socket = socketService.getSocket();
+        if (socket?.connected && this.currentRoomId && this.currentUserId) {
+          socket.emit('voice:data', {
+            roomId: this.currentRoomId,
+            userId: this.currentUserId,
+            audioData: base64,
+            mimeType: 'pcm/16000',
+            sentAt: Date.now(),
+          });
+        }
+      }
+    };
+
+    source.connect(processor);
+    // Connect to destination through a zero gain to keep script processor alive without local feedback
+    const silentGain = this.audioContext.createGain();
+    silentGain.gain.value = 0;
+    processor.connect(silentGain);
+    silentGain.connect(this.audioContext.destination);
+  }
+
+  private downsampleTo16kHz(input: Float32Array, inputSampleRate: number): Float32Array {
+    if (inputSampleRate === this.TARGET_SAMPLE_RATE) {
+      return input;
+    }
+    const ratio = inputSampleRate / this.TARGET_SAMPLE_RATE;
+    const newLength = Math.round(input.length / ratio);
+    const result = new Float32Array(newLength);
+    for (let i = 0; i < newLength; i++) {
+      const srcIdx = Math.floor(i * ratio);
+      result[i] = input[srcIdx] || 0;
+    }
+    return result;
+  }
+
+  private int16ToBase64(int16: Int16Array): string {
+    const bytes = new Uint8Array(int16.buffer, int16.byteOffset, int16.byteLength);
+    let binary = '';
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
   }
 
   /**
@@ -245,15 +361,14 @@ class VoiceService {
 
     this.detachSocketListeners();
 
-    // Stop MediaRecorder
-    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+    // Disconnect ScriptProcessor
+    if (this.scriptProcessor) {
       try {
-        this.mediaRecorder.stop();
-      } catch (e) {
-        // ignore
-      }
+        this.scriptProcessor.disconnect();
+      } catch (e) {}
+      this.scriptProcessor = null;
     }
-    this.mediaRecorder = null;
+    this.pcmChunkBuffer = [];
 
     // Stop all audio tracks
     if (this.mediaStream) {
@@ -265,9 +380,7 @@ class VoiceService {
       try {
         this.mediaStreamSource?.disconnect(this.echoGainNode);
         this.echoGainNode.disconnect();
-      } catch (e) {
-        // ignore
-      }
+      } catch (e) {}
       this.echoGainNode = null;
     }
     this.mediaStreamSource = null;
@@ -279,17 +392,14 @@ class VoiceService {
       this.animFrameId = null;
     }
 
-    // Close AudioContext
-    if (this.audioContext && this.audioContext.state !== 'closed') {
+    // Clear peer channels
+    this.peerAudioNodes.forEach((node) => {
       try {
-        this.audioContext.close();
-      } catch (e) {
-        // ignore
-      }
-      this.audioContext = null;
-    }
+        node.gainNode.disconnect();
+      } catch (e) {}
+    });
+    this.peerAudioNodes.clear();
 
-    this.peerAudios.clear();
     this.speakingTimers.forEach((t) => clearTimeout(t));
     this.speakingTimers.clear();
 
@@ -302,6 +412,7 @@ class VoiceService {
     this.state.pttActive = false;
     this.state.inputLevel = 0;
     this.state.voiceMembers = [];
+    this.state.isListenOnly = false;
     this.notify();
   }
 
@@ -326,7 +437,7 @@ class VoiceService {
       try {
         if (!this.echoGainNode) {
           this.echoGainNode = this.audioContext.createGain();
-          this.echoGainNode.gain.value = 0.85;
+          this.echoGainNode.gain.value = 0.9;
         }
         this.mediaStreamSource.connect(this.echoGainNode);
         this.echoGainNode.connect(this.audioContext.destination);
@@ -338,9 +449,7 @@ class VoiceService {
         try {
           this.mediaStreamSource.disconnect(this.echoGainNode);
           this.echoGainNode.disconnect();
-        } catch (e) {
-          // ignore
-        }
+        } catch (e) {}
         this.echoGainNode = null;
       }
     }
@@ -349,7 +458,6 @@ class VoiceService {
 
   /**
    * Simulated Peer Voice Test (模拟道友发言试音)
-   * Plays a graceful pentatonic chime sequence and triggers speaking halo
    */
   public simulatePeerVoice(peerName: string = '清虚道长', avatar: string = '🧙‍♂️') {
     const simulatedId = `sim_peer_${peerName}`;
@@ -372,9 +480,8 @@ class VoiceService {
     // Synthesize harmonic pentatonic tones (宫商角徵羽)
     if (!this.state.isDeafened) {
       try {
-        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-        const ctx = this.audioContext || new AudioCtx();
-        if (ctx.state === 'suspended') ctx.resume();
+        const ctx = this.getOrCreateAudioContext();
+        if (ctx.state === 'suspended') ctx.resume().catch(() => {});
 
         const freqs = [261.63, 329.63, 392.0, 523.25];
         freqs.forEach((freq, idx) => {
@@ -386,18 +493,16 @@ class VoiceService {
           const startTime = ctx.currentTime + idx * 0.2;
           const duration = 0.45;
           gain.gain.setValueAtTime(0, startTime);
-          gain.gain.linearRampToValueAtTime((member?.volume ?? 1) * 0.22, startTime + 0.04);
+          gain.gain.linearRampToValueAtTime((member?.volume ?? 1) * 0.3, startTime + 0.04);
           gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
 
           osc.connect(gain);
-          gain.connect(ctx.destination);
+          gain.connect(this.masterGainNode || ctx.destination);
 
           osc.start(startTime);
           osc.stop(startTime + duration);
         });
-      } catch (e) {
-        // Audio synthesis fallback
-      }
+      } catch (e) {}
     }
 
     setTimeout(() => {
@@ -450,7 +555,6 @@ class VoiceService {
       this.setSpeaking(false);
     }
 
-    // Broadcast mute status
     if (this.currentRoomId && this.currentUserId) {
       const socket = socketService.getSocket();
       socket?.emit('voice:mute_status', {
@@ -472,9 +576,6 @@ class VoiceService {
     return this.state.isDeafened;
   }
 
-  /**
-   * Switch mode between 'vad' (自由开麦) and 'ptt' (按住说话)
-   */
   public setVoiceMode(mode: 'vad' | 'ptt') {
     this.state.voiceMode = mode;
     if (mode === 'ptt' && !this.state.pttActive) {
@@ -483,9 +584,6 @@ class VoiceService {
     this.notify();
   }
 
-  /**
-   * Push-to-talk keydown / keyup
-   */
   public setPttActive(active: boolean) {
     if (this.state.isMicMuted) return;
     this.state.pttActive = active;
@@ -502,6 +600,10 @@ class VoiceService {
     const member = this.state.voiceMembers.find((m) => m.userId === userId);
     if (member) {
       member.volume = Math.max(0, Math.min(1, volume));
+      const peerNode = this.peerAudioNodes.get(userId);
+      if (peerNode) {
+        peerNode.gainNode.gain.value = member.volume;
+      }
       this.notify();
     }
   }
@@ -517,17 +619,14 @@ class VoiceService {
 
       this.analyser.getByteFrequencyData(dataArray);
 
-      // Calculate volume RMS
       let sum = 0;
       for (let i = 0; i < dataArray.length; i++) {
         sum += dataArray[i];
       }
       const avg = sum / dataArray.length;
-      // Scale 0 - 100
       const currentLevel = Math.min(100, Math.round((avg / 255) * 150));
       this.state.inputLevel = currentLevel;
 
-      // In VAD mode, check against threshold
       if (this.state.voiceMode === 'vad' && !this.state.isMicMuted) {
         const speakingNow = currentLevel >= this.state.vadThreshold;
         if (speakingNow !== this.state.isSpeaking) {
@@ -578,7 +677,13 @@ class VoiceService {
 
   private handleUserLeft = (data: { userId: string }) => {
     this.state.voiceMembers = this.state.voiceMembers.filter((m) => m.userId !== data.userId);
-    this.peerAudios.delete(data.userId);
+    const peerNode = this.peerAudioNodes.get(data.userId);
+    if (peerNode) {
+      try {
+        peerNode.gainNode.disconnect();
+      } catch (e) {}
+      this.peerAudioNodes.delete(data.userId);
+    }
     this.notify();
   };
 
@@ -598,17 +703,20 @@ class VoiceService {
     }
   };
 
+  /**
+   * Receive and playback incoming audio chunks with high fidelity PCM & WeChat compatibility
+   */
   private handleVoiceData = async (data: {
     userId: string;
     audioData: string;
     mimeType: string;
+    sentAt?: number;
   }) => {
     if (data.userId === this.currentUserId || this.state.isDeafened) return;
 
     // Track member speaking status
     let member = this.state.voiceMembers.find((m) => m.userId === data.userId);
     if (!member) {
-      // Auto-register member if not listed yet
       member = {
         userId: data.userId,
         name: '牌友',
@@ -636,18 +744,82 @@ class VoiceService {
 
     // Play incoming audio chunk
     try {
-      const blob = this.base64ToBlob(data.audioData, data.mimeType || 'audio/webm');
-      const audioUrl = URL.createObjectURL(blob);
-      const audio = new Audio(audioUrl);
-      audio.volume = member ? member.volume : 1.0;
-      audio.onended = () => {
-        URL.revokeObjectURL(audioUrl);
-      };
-      await audio.play();
+      const ctx = this.getOrCreateAudioContext();
+      if (ctx.state === 'suspended') {
+        await ctx.resume().catch(() => {});
+      }
+
+      if (data.mimeType && data.mimeType.startsWith('pcm')) {
+        // High fidelity PCM streaming - zero codec dependencies, 100% works on iOS WeChat & Android
+        const binary = atob(data.audioData);
+        const len = binary.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        const int16 = new Int16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 2);
+        const float32 = new Float32Array(int16.length);
+        for (let i = 0; i < int16.length; i++) {
+          float32[i] = int16[i] / 32768.0;
+        }
+
+        const audioBuffer = ctx.createBuffer(1, float32.length, this.TARGET_SAMPLE_RATE);
+        audioBuffer.copyToChannel(float32, 0);
+
+        let peerChannel = this.peerAudioNodes.get(data.userId);
+        if (!peerChannel) {
+          const gainNode = ctx.createGain();
+          gainNode.connect(this.masterGainNode || ctx.destination);
+          peerChannel = { gainNode, nextPlayTime: ctx.currentTime };
+          this.peerAudioNodes.set(data.userId, peerChannel);
+        }
+
+        peerChannel.gainNode.gain.value = member ? member.volume : 1.0;
+
+        const source = ctx.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(peerChannel.gainNode);
+
+        const now = ctx.currentTime;
+        const startTime = Math.max(now, Math.min(now + 0.3, peerChannel.nextPlayTime));
+        source.start(startTime);
+        peerChannel.nextPlayTime = startTime + audioBuffer.duration;
+      } else {
+        // Fallback for legacy WebM or MP4 chunks
+        const binary = atob(data.audioData);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        ctx.decodeAudioData(
+          bytes.buffer.slice(0),
+          (decodedBuffer) => {
+            const source = ctx.createBufferSource();
+            source.buffer = decodedBuffer;
+            source.connect(this.masterGainNode || ctx.destination);
+            source.start();
+          },
+          () => {
+            // If Web Audio decodeAudioData fails (e.g. WebM on iOS), try HTML5 Audio
+            this.fallbackPlayBlob(data.audioData, data.mimeType, member?.volume ?? 1.0);
+          }
+        );
+      }
     } catch (e) {
-      // Autoplay or decode error - ignore gracefully
+      console.warn('[VoiceService] Playback error:', e);
     }
   };
+
+  private fallbackPlayBlob(audioData: string, mimeType: string, volume: number) {
+    try {
+      const blob = this.base64ToBlob(audioData, mimeType || 'audio/webm');
+      const audioUrl = URL.createObjectURL(blob);
+      const audio = new Audio(audioUrl);
+      audio.volume = volume;
+      audio.onended = () => URL.revokeObjectURL(audioUrl);
+      audio.play().catch(() => {});
+    } catch (e) {}
+  }
 
   private handleSyncMembers = (
     members: {
@@ -701,19 +873,6 @@ class VoiceService {
     socket.off('voice:speaking', this.handleSpeaking);
     socket.off('voice:mute_status', this.handleMuteStatus);
     socket.off('voice:data', this.handleVoiceData);
-  }
-
-  private blobToBase64(blob: Blob): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const res = reader.result as string;
-        const base64 = res.split(',')[1] || '';
-        resolve(base64);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
   }
 
   private base64ToBlob(base64: string, mimeType: string): Blob {

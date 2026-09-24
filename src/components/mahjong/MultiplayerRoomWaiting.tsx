@@ -156,72 +156,83 @@ export const MultiplayerRoomWaiting: React.FC<MultiplayerRoomWaitingProps> = ({
     <div className="w-full max-w-4xl mx-auto px-3 sm:px-4 py-2 space-y-4 animate-in fade-in">
       
       {/* Room Header Card */}
-      <div className="bg-[#1C1230] border border-purple-500/30 rounded-3xl p-4 sm:p-5 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-1 rounded-xl bg-purple-950 border border-purple-500/40 text-amber-300 font-black text-xs">
-              桌台 #{gameState.roomId}
-            </span>
-            <h2 className="text-base sm:text-lg font-black text-white">{gameState.roomName}</h2>
-            {gameState.settings.isPrivate && (
-              <span className="p-1 rounded-md bg-red-950/80 text-red-400 text-xs">
-                <Lock className="w-3.5 h-3.5" />
+      <div className="bg-[#1C1230] border border-purple-500/30 rounded-3xl p-4 sm:p-5 shadow-xl space-y-3.5">
+        {/* Top Row: Room Info on Left, Dedicated Always-Visible Exit Button on Right */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="px-2.5 py-1 rounded-xl bg-purple-950 border border-purple-500/40 text-amber-300 font-black text-xs shrink-0">
+                桌台 #{gameState.roomId}
               </span>
-            )}
+              <h2 className="text-base sm:text-lg font-black text-white truncate">{gameState.roomName}</h2>
+              {gameState.settings.isPrivate && (
+                <span className="p-1 rounded-md bg-red-950/80 text-red-400 text-xs shrink-0" title="私密房间">
+                  <Lock className="w-3.5 h-3.5" />
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 sm:gap-3 mt-1.5 text-xs text-slate-400 flex-wrap">
+              <span>限时：<b className="text-amber-300">{gameState.settings.turnTimeLimit}s</b> / 步</span>
+              <span>·</span>
+              <span>自动补齐电脑人：<b className={gameState.settings.autoFillBots ? 'text-emerald-400' : 'text-slate-500'}>
+                {gameState.settings.autoFillBots ? '开启' : '关闭'}
+              </b></span>
+            </div>
           </div>
-          <div className="flex items-center gap-3 mt-1 text-xs text-slate-400">
-            <span>限时：<b className="text-amber-300">{gameState.settings.turnTimeLimit}s</b> / 步</span>
-            <span>·</span>
-            <span>自动补齐电脑人：<b className={gameState.settings.autoFillBots ? 'text-emerald-400' : 'text-slate-500'}>
-              {gameState.settings.autoFillBots ? '开启' : '关闭'}
-            </b></span>
-          </div>
-        </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
-          {/* Online Real-Time Voice Chat Bar */}
-          <VoiceChatBar
-            roomId={gameState.roomId}
-            userId={myProfile.userId}
-            userName={myProfile.name}
-            userAvatar={myProfile.avatar}
-            roomPlayers={gameState.players.filter((p): p is OnlinePlayer => p !== null).map(p => ({
-              userId: p.userId,
-              name: p.name,
-              avatar: p.avatar,
-            }))}
-          />
-
-          {isHost && hasEmptySeats && (
-            <button
-              type="button"
-              onClick={handleFillAllBots}
-              disabled={isFillingBots}
-              className="px-3.5 py-2 rounded-2xl bg-blue-950/80 hover:bg-blue-900 text-blue-300 hover:text-white text-xs font-bold transition-all border border-blue-500/40 flex items-center gap-1.5 shadow-sm"
-              title="快速将所有空余席位补满AI电脑人"
-            >
-              {isFillingBots ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Bot className="w-3.5 h-3.5 text-blue-400" />}
-              <span>一键补满电脑人</span>
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={handleCopyCode}
-            className="px-3.5 py-2 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-200 text-xs font-bold transition-all border border-white/10 flex items-center gap-1.5 shadow-sm"
-          >
-            {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-amber-400" />}
-            <span>{copiedCode ? '已复制房号' : '邀请好友 (复制房号)'}</span>
-          </button>
-
+          {/* Always Visible Exit Room Button at Top-Right */}
           <button
             type="button"
             onClick={onLeaveRoom}
-            className="px-3.5 py-2 rounded-2xl bg-red-950/40 hover:bg-red-950 text-red-300 text-xs font-bold transition-all border border-red-500/30 flex items-center gap-1.5"
+            className="px-3 py-1.5 sm:px-4 sm:py-2 rounded-2xl bg-red-950/70 hover:bg-red-900 border border-red-500/50 text-red-200 hover:text-white text-xs font-bold transition-all shadow-md flex items-center gap-1.5 shrink-0 active:scale-95 cursor-pointer ring-1 ring-red-500/30"
+            title="退出当前房间并返回大厅"
           >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>退出</span>
+            <LogOut className="w-3.5 h-3.5 text-red-400" />
+            <span>退出房间</span>
           </button>
+        </div>
+
+        {/* Bottom Row: Voice Chat System & Quick Action Buttons */}
+        <div className="pt-2.5 border-t border-purple-500/20 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+          {/* Online Real-Time Voice Chat Bar */}
+          <div className="flex items-center min-w-0">
+            <VoiceChatBar
+              roomId={gameState.roomId}
+              userId={myProfile.userId}
+              userName={myProfile.name}
+              userAvatar={myProfile.avatar}
+              roomPlayers={gameState.players.filter((p): p is OnlinePlayer => p !== null).map(p => ({
+                userId: p.userId,
+                name: p.name,
+                avatar: p.avatar,
+              }))}
+            />
+          </div>
+
+          {/* Action Buttons: Fill Bots & Copy Code */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {isHost && hasEmptySeats && (
+              <button
+                type="button"
+                onClick={handleFillAllBots}
+                disabled={isFillingBots}
+                className="flex-1 sm:flex-initial px-3 py-2 rounded-2xl bg-blue-950/80 hover:bg-blue-900 text-blue-300 hover:text-white text-xs font-bold transition-all border border-blue-500/40 flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
+                title="快速将所有空余席位补满AI电脑人"
+              >
+                {isFillingBots ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Bot className="w-3.5 h-3.5 text-blue-400" />}
+                <span>一键补满电脑人</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleCopyCode}
+              className="flex-1 sm:flex-initial px-3.5 py-2 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-200 text-xs font-bold transition-all border border-white/10 flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
+            >
+              {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-amber-400" />}
+              <span>{copiedCode ? '已复制房号' : '邀请好友 (复制房号)'}</span>
+            </button>
+          </div>
         </div>
       </div>
 
