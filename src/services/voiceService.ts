@@ -56,10 +56,14 @@ class VoiceService {
   private analyser: AnalyserNode | null = null;
   private animFrameId: number | null = null;
 
-  // PCM capture buffer
+  // PCM capture buffer & VAD enhancements
   private pcmChunkBuffer: number[] = [];
+  private preRollBuffer: number[] = [];
   private readonly TARGET_SAMPLE_RATE = 16000;
-  private readonly CHUNK_SAMPLE_COUNT = 3200; // ~200ms per packet at 16kHz
+  private readonly CHUNK_SAMPLE_COUNT = 1600; // ~100ms per packet at 16kHz for low latency and smooth stream
+  private readonly PRE_ROLL_SAMPLES = 1600; // ~100ms pre-speech audio buffer
+  private vadHangoverTimeout: NodeJS.Timeout | null = null;
+  private readonly VAD_HANGOVER_MS = 650; // Hold speech active for 650ms to prevent sentence-chopping between syllables
 
   private state: VoiceState = {
     isInVoice: false,
@@ -267,49 +271,61 @@ class VoiceService {
     const processor = this.audioContext.createScriptProcessor(2048, 1, 1);
     this.scriptProcessor = processor;
     this.pcmChunkBuffer = [];
+    this.preRollBuffer = [];
+    let wasTransmitting = false;
 
     processor.onaudioprocess = (e: AudioProcessingEvent) => {
       if (this.state.isMicMuted || this.state.isListenOnly) {
         this.pcmChunkBuffer = [];
+        this.preRollBuffer = [];
+        wasTransmitting = false;
         return;
       }
 
       const shouldTransmit =
         this.state.voiceMode === 'ptt' ? this.state.pttActive : this.state.isSpeaking;
 
+      const input = e.inputBuffer.getChannelData(0);
+      const downsampled = this.downsampleTo16kHz(input, sampleRate);
+
       if (!shouldTransmit) {
-        this.pcmChunkBuffer = [];
+        // If we just stopped transmitting, flush any leftover audio (at least 320 samples = 20ms) so speech tail isn't cut
+        if (wasTransmitting && this.pcmChunkBuffer.length > 320) {
+          this.sendPcmPacket(this.pcmChunkBuffer);
+          this.pcmChunkBuffer = [];
+        } else {
+          this.pcmChunkBuffer = [];
+        }
+        wasTransmitting = false;
+
+        // Maintain continuous rolling pre-roll buffer (~100ms) while silent
+        for (let i = 0; i < downsampled.length; i++) {
+          this.preRollBuffer.push(downsampled[i]);
+        }
+        if (this.preRollBuffer.length > this.PRE_ROLL_SAMPLES) {
+          this.preRollBuffer.splice(0, this.preRollBuffer.length - this.PRE_ROLL_SAMPLES);
+        }
         return;
       }
 
-      const input = e.inputBuffer.getChannelData(0);
-      const downsampled = this.downsampleTo16kHz(input, sampleRate);
+      // If speech just started, prepend the pre-roll buffer so words' initial attack isn't lost
+      if (!wasTransmitting && this.preRollBuffer.length > 0) {
+        for (let i = 0; i < this.preRollBuffer.length; i++) {
+          this.pcmChunkBuffer.push(this.preRollBuffer[i]);
+        }
+        this.preRollBuffer = [];
+      }
+      wasTransmitting = true;
 
       // Accumulate samples
       for (let i = 0; i < downsampled.length; i++) {
         this.pcmChunkBuffer.push(downsampled[i]);
       }
 
-      // When chunk is full (~200ms of audio), send packet
-      if (this.pcmChunkBuffer.length >= this.CHUNK_SAMPLE_COUNT) {
+      // When chunk is full (~100ms of audio), send packet
+      while (this.pcmChunkBuffer.length >= this.CHUNK_SAMPLE_COUNT) {
         const samplesToSend = this.pcmChunkBuffer.splice(0, this.CHUNK_SAMPLE_COUNT);
-        const int16Array = new Int16Array(samplesToSend.length);
-        for (let i = 0; i < samplesToSend.length; i++) {
-          const s = Math.max(-1, Math.min(1, samplesToSend[i]));
-          int16Array[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-        }
-
-        const base64 = this.int16ToBase64(int16Array);
-        const socket = socketService.getSocket();
-        if (socket?.connected && this.currentRoomId && this.currentUserId) {
-          socket.emit('voice:data', {
-            roomId: this.currentRoomId,
-            userId: this.currentUserId,
-            audioData: base64,
-            mimeType: 'pcm/16000',
-            sentAt: Date.now(),
-          });
-        }
+        this.sendPcmPacket(samplesToSend);
       }
     };
 
@@ -321,6 +337,30 @@ class VoiceService {
     silentGain.connect(this.audioContext.destination);
   }
 
+  private sendPcmPacket(samples: number[]) {
+    if (samples.length === 0) return;
+    const int16Array = new Int16Array(samples.length);
+    for (let i = 0; i < samples.length; i++) {
+      const s = Math.max(-1, Math.min(1, samples[i]));
+      int16Array[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+    }
+
+    const base64 = this.int16ToBase64(int16Array);
+    const socket = socketService.getSocket();
+    if (socket?.connected && this.currentRoomId && this.currentUserId) {
+      socket.emit('voice:data', {
+        roomId: this.currentRoomId,
+        userId: this.currentUserId,
+        audioData: base64,
+        mimeType: 'pcm/16000',
+        sentAt: Date.now(),
+      });
+    }
+  }
+
+  /**
+   * High-quality linear-interpolated downsampling to 16kHz
+   */
   private downsampleTo16kHz(input: Float32Array, inputSampleRate: number): Float32Array {
     if (inputSampleRate === this.TARGET_SAMPLE_RATE) {
       return input;
@@ -328,9 +368,16 @@ class VoiceService {
     const ratio = inputSampleRate / this.TARGET_SAMPLE_RATE;
     const newLength = Math.round(input.length / ratio);
     const result = new Float32Array(newLength);
+    const inputLen = input.length;
+
     for (let i = 0; i < newLength; i++) {
-      const srcIdx = Math.floor(i * ratio);
-      result[i] = input[srcIdx] || 0;
+      const srcIdx = i * ratio;
+      const i0 = Math.floor(srcIdx);
+      const i1 = Math.min(inputLen - 1, i0 + 1);
+      const frac = srcIdx - i0;
+      const s0 = input[i0] || 0;
+      const s1 = input[i1] || 0;
+      result[i] = s0 * (1 - frac) + s1 * frac;
     }
     return result;
   }
@@ -369,6 +416,11 @@ class VoiceService {
       this.scriptProcessor = null;
     }
     this.pcmChunkBuffer = [];
+    this.preRollBuffer = [];
+    if (this.vadHangoverTimeout) {
+      clearTimeout(this.vadHangoverTimeout);
+      this.vadHangoverTimeout = null;
+    }
 
     // Stop all audio tracks
     if (this.mediaStream) {
@@ -629,8 +681,25 @@ class VoiceService {
 
       if (this.state.voiceMode === 'vad' && !this.state.isMicMuted) {
         const speakingNow = currentLevel >= this.state.vadThreshold;
-        if (speakingNow !== this.state.isSpeaking) {
-          this.setSpeaking(speakingNow);
+        if (speakingNow) {
+          // Immediately trigger speaking when voice energy crosses threshold
+          if (this.vadHangoverTimeout) {
+            clearTimeout(this.vadHangoverTimeout);
+            this.vadHangoverTimeout = null;
+          }
+          if (!this.state.isSpeaking) {
+            this.setSpeaking(true);
+          }
+        } else if (this.state.isSpeaking) {
+          // Start hangover timer when voice energy drops, to avoid chopping speech between syllables/words
+          if (!this.vadHangoverTimeout) {
+            this.vadHangoverTimeout = setTimeout(() => {
+              this.vadHangoverTimeout = null;
+              if (this.state.inputLevel < this.state.vadThreshold) {
+                this.setSpeaking(false);
+              }
+            }, this.VAD_HANGOVER_MS);
+          }
         }
       }
 
@@ -763,6 +832,14 @@ class VoiceService {
           float32[i] = int16[i] / 32768.0;
         }
 
+        // Apply a gentle 1.5ms fade-in and fade-out at buffer boundaries to prevent pop/click artifacts
+        const fadeLength = Math.min(24, Math.floor(float32.length / 8));
+        for (let i = 0; i < fadeLength; i++) {
+          const factor = i / fadeLength;
+          float32[i] *= factor;
+          float32[float32.length - 1 - i] *= factor;
+        }
+
         const audioBuffer = ctx.createBuffer(1, float32.length, this.TARGET_SAMPLE_RATE);
         audioBuffer.copyToChannel(float32, 0);
 
@@ -770,7 +847,7 @@ class VoiceService {
         if (!peerChannel) {
           const gainNode = ctx.createGain();
           gainNode.connect(this.masterGainNode || ctx.destination);
-          peerChannel = { gainNode, nextPlayTime: ctx.currentTime };
+          peerChannel = { gainNode, nextPlayTime: 0 };
           this.peerAudioNodes.set(data.userId, peerChannel);
         }
 
@@ -781,7 +858,15 @@ class VoiceService {
         source.connect(peerChannel.gainNode);
 
         const now = ctx.currentTime;
-        const startTime = Math.max(now, Math.min(now + 0.3, peerChannel.nextPlayTime));
+        // Jitter buffer logic: if underrun (nextPlayTime < now), add a slight 40ms cushion
+        let startTime = peerChannel.nextPlayTime;
+        if (startTime < now) {
+          startTime = now + 0.04;
+        } else if (startTime > now + 0.35) {
+          // If accumulated too much drift/delay, snap back to low latency
+          startTime = now + 0.04;
+        }
+
         source.start(startTime);
         peerChannel.nextPlayTime = startTime + audioBuffer.duration;
       } else {

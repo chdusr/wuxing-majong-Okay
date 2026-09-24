@@ -205,14 +205,16 @@ export class MahjongRoom {
     const wasHost = player.isHost;
 
     if (this.status === 'playing') {
-      // In-game: convert to Bot so game flow continues smoothly
+      // In-game: convert to Bot so game flow continues smoothly without stalling remaining players
       player.isBot = true;
-      player.isConnected = true;
+      player.isConnected = false;
+      player.id = ''; // Detach socket completely so broadcasts are never sent to this socket
+      player.userId = `bot_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`; // Decouple userId so user is completely free to create/join new games
       player.name = `${player.name.replace(/\(托管\)$/, '')}(托管)`;
       player.avatar = '🤖';
 
       if (io) {
-        this.addSystemMessage(io, `牌友【${player.name}】离开牌桌，系统已启用 AI 智能替打托管。`);
+        this.addSystemMessage(io, `牌友离开牌桌，系统已启用 AI 智能电脑人托管替打。`);
         if (this.currentTurn === playerIdx) {
           this.scheduleBotTurn(io);
         }

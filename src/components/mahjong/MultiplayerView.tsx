@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MultiplayerGameState, ChatMessage } from '../../types/multiplayer';
 import { socketService, getLocalUserProfile } from '../../services/socketService';
+import { voiceService } from '../../services/voiceService';
 import { MultiplayerLobby } from './MultiplayerLobby';
 import { MultiplayerRoomWaiting } from './MultiplayerRoomWaiting';
 import { MultiplayerGameBoard } from './MultiplayerGameBoard';
@@ -19,13 +20,20 @@ export const MultiplayerView: React.FC<MultiplayerViewProps> = ({
   const [gameState, setGameState] = useState<MultiplayerGameState | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const currentRoomIdRef = useRef<string | null>(null);
+  const isExitingRef = useRef<boolean>(false);
 
   useEffect(() => {
     socketService.connect();
     const socket = socketService.getSocket();
 
     const handleGameState = (incomingState: MultiplayerGameState) => {
-      if (!incomingState) return;
+      if (!incomingState || isExitingRef.current) return;
+      // Drop updates for other rooms or if player has exited
+      if (!currentRoomIdRef.current || incomingState.roomId !== currentRoomIdRef.current) {
+        return;
+      }
+
       setGameState(prev => {
         if (!prev || !incomingState) return incomingState;
         const myProfile = getLocalUserProfile();
@@ -43,11 +51,11 @@ export const MultiplayerView: React.FC<MultiplayerViewProps> = ({
         }
         return incomingState;
       });
-      setCurrentRoomId(incomingState.roomId);
       setIsSyncing(false);
     };
 
     const handleChatMessage = (msg: ChatMessage) => {
+      if (isExitingRef.current) return;
       setChatMessages(prev => [...prev, msg]);
     };
 
@@ -62,10 +70,15 @@ export const MultiplayerView: React.FC<MultiplayerViewProps> = ({
 
   // Background state polling sync (Every 2.5s) to guarantee zero-stall gameplay on volatile networks
   useEffect(() => {
-    if (!currentRoomId || !gameState) return;
+    if (!currentRoomId || !gameState || isExitingRef.current) return;
 
     const interval = setInterval(() => {
+      if (isExitingRef.current || !currentRoomIdRef.current || currentRoomIdRef.current !== currentRoomId) {
+        return;
+      }
+
       socketService.syncRoom(currentRoomId, res => {
+        if (isExitingRef.current || currentRoomIdRef.current !== currentRoomId) return;
         if (res.success && res.state) {
           setGameState(prev => {
             if (!prev) return res.state!;
@@ -87,6 +100,8 @@ export const MultiplayerView: React.FC<MultiplayerViewProps> = ({
   }, [currentRoomId, Boolean(gameState)]);
 
   const handleJoinRoom = (roomId: string, initialState?: MultiplayerGameState) => {
+    isExitingRef.current = false;
+    currentRoomIdRef.current = roomId;
     setCurrentRoomId(roomId);
     if (initialState) {
       setGameState(initialState);
@@ -94,6 +109,7 @@ export const MultiplayerView: React.FC<MultiplayerViewProps> = ({
     } else {
       setIsSyncing(true);
       socketService.syncRoom(roomId, res => {
+        if (isExitingRef.current || currentRoomIdRef.current !== roomId) return;
         if (res.success && res.state) {
           setGameState(res.state);
         }
@@ -104,13 +120,32 @@ export const MultiplayerView: React.FC<MultiplayerViewProps> = ({
   };
 
   const handleLeaveRoom = () => {
-    if (currentRoomId) {
-      socketService.leaveRoom(currentRoomId);
+    const leavingRoomId = currentRoomIdRef.current || currentRoomId;
+    isExitingRef.current = true;
+    currentRoomIdRef.current = null;
+
+    // 1. Immediately leave voice chat
+    try {
+      voiceService.leaveVoice();
+    } catch (e) {
+      console.warn('Voice leave error:', e);
     }
+
+    // 2. Notify socket server to leave room
+    if (leavingRoomId) {
+      socketService.leaveRoom(leavingRoomId);
+    }
+
+    // 3. Clear local states immediately to return to lobby
     setCurrentRoomId(null);
     setGameState(null);
     setChatMessages([]);
     setIsSyncing(false);
+
+    // 4. Cool-off timer for exit lock
+    setTimeout(() => {
+      isExitingRef.current = false;
+    }, 800);
   };
 
   // If in room ID but game state is syncing

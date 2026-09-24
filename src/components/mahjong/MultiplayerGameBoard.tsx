@@ -123,6 +123,18 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
   const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
   const [isLogsOpen, setIsLogsOpen] = useState<boolean>(false);
   const [chatInput, setChatInput] = useState<string>('');
+  const [isLeaveModalOpen, setIsLeaveModalOpen] = useState<boolean>(false);
+  const [isLeaving, setIsLeaving] = useState<boolean>(false);
+
+  const handleConfirmLeave = () => {
+    setIsLeaving(true);
+    try {
+      onLeaveRoom();
+    } catch (e) {
+      console.error('Leave room failed:', e);
+      setIsLeaving(false);
+    }
+  };
 
   // Game activity live log
   const [gameLogs, setGameLogs] = useState<string[]>([
@@ -629,7 +641,7 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
     <div className="w-full max-w-5xl mx-auto px-2 sm:px-4 py-1.5 space-y-2.5 animate-in fade-in select-none">
       
       {/* Table Top Status Bar & Quick Tools */}
-      <div className="bg-[#180E29]/95 border border-purple-500/30 rounded-2xl p-2.5 sm:p-3 shadow-xl flex items-center justify-between gap-3 text-xs">
+      <div className="bg-[#180E29]/95 border border-purple-500/30 rounded-2xl p-2 sm:p-3 shadow-xl flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 sm:gap-3 text-xs">
         
         {/* Left Room Info */}
         <div className="flex items-center gap-2">
@@ -752,11 +764,11 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
             )}
           </button>
 
-          {/* Leave Room Button - Prominent and always visible */}
+          {/* Leave Room Button - Prominent, accessible, and always visible */}
           <button
             type="button"
-            onClick={onLeaveRoom}
-            className="px-2 sm:px-2.5 py-1.5 rounded-xl bg-red-950/70 hover:bg-red-900 border border-red-500/50 text-red-200 hover:text-white text-[11px] font-bold transition-all flex items-center gap-1 shrink-0 ring-1 ring-red-500/20 active:scale-95 shadow-sm"
+            onClick={() => setIsLeaveModalOpen(true)}
+            className="px-2 sm:px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-red-950 to-rose-950 hover:from-red-900 hover:to-rose-900 border border-red-500/50 text-red-200 hover:text-white text-[11px] font-bold transition-all flex items-center gap-1 shrink-0 ring-1 ring-red-500/30 active:scale-95 shadow-sm"
             title="离开当前对战桌台并返回大厅"
           >
             <LogOut className="w-3.5 h-3.5 text-red-400" />
@@ -1389,6 +1401,7 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
               socketService.nextRound(gameState.roomId);
             }
           }}
+          onLeaveRoom={onLeaveRoom}
         />
       )}
 
@@ -1404,7 +1417,64 @@ export const MultiplayerGameBoard: React.FC<MultiplayerGameBoardProps> = ({
           onNextRound={() => {
             socketService.nextRound(gameState.roomId);
           }}
+          onLeaveRoom={onLeaveRoom}
         />
+      )}
+
+      {/* Leave Room Confirmation Dialog */}
+      {isLeaveModalOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-sm bg-gradient-to-b from-[#28182B] via-[#1E1124] to-[#140B1A] border-2 border-red-500/40 rounded-3xl p-5 text-white shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-red-500/20 border border-red-500/40 flex items-center justify-center shrink-0">
+                <LogOut className="w-5 h-5 text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-slate-100">退出当前对战？</h3>
+                <p className="text-xs text-slate-400">五行麻将联网对局</p>
+              </div>
+            </div>
+
+            <div className="bg-black/40 border border-white/5 rounded-2xl p-3 text-xs text-slate-300 space-y-2 leading-relaxed">
+              <p>
+                牌局正在进行中。您离开后，系统将立即启用 <span className="text-amber-400 font-bold">AI 智能电脑人替打托管</span>，对桌牌友的对战不会中断。
+              </p>
+              <p className="text-[11px] text-slate-400">
+                您将安全返回对战大厅，可以随时创建新房间或入驻其他桌台。
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setIsLeaveModalOpen(false)}
+                disabled={isLeaving}
+                className="flex-1 py-2.5 px-3 rounded-xl bg-purple-950/70 hover:bg-purple-900 border border-purple-500/30 text-purple-200 text-xs font-bold transition-all active:scale-95 disabled:opacity-50"
+              >
+                继续对局
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmLeave}
+                disabled={isLeaving}
+                className="flex-1 py-2.5 px-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white text-xs font-bold transition-all shadow-lg shadow-red-900/40 flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50"
+              >
+                {isLeaving ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>正在退出...</span>
+                  </>
+                ) : (
+                  <>
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>确认退出</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

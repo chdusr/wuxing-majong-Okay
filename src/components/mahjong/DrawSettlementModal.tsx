@@ -2,7 +2,7 @@ import React from 'react';
 import { Player } from '../../types/mahjong';
 import { OnlinePlayer } from '../../types/multiplayer';
 import { PlayerAvatar } from './PlayerAvatar';
-import { RefreshCw, ChevronRight, Wind, Award, Users } from 'lucide-react';
+import { RefreshCw, ChevronRight, Wind, Award, Users, LogOut } from 'lucide-react';
 
 interface DrawSettlementModalProps {
   isOpen: boolean;
@@ -10,6 +10,7 @@ interface DrawSettlementModalProps {
   dealerIndex: number;
   onNextRound: () => void;
   onRestartGame: () => void;
+  onLeaveRoom?: () => void;
 }
 
 export const DrawSettlementModal: React.FC<DrawSettlementModalProps> = ({
@@ -18,6 +19,7 @@ export const DrawSettlementModal: React.FC<DrawSettlementModalProps> = ({
   dealerIndex,
   onNextRound,
   onRestartGame,
+  onLeaveRoom,
 }) => {
   if (!isOpen) return null;
 
@@ -76,7 +78,19 @@ export const DrawSettlementModal: React.FC<DrawSettlementModalProps> = ({
         </div>
 
         {/* Buttons */}
-        <div className="w-full flex gap-3">
+        <div className="w-full flex items-center gap-2 sm:gap-2.5">
+          {onLeaveRoom && (
+            <button
+              type="button"
+              onClick={onLeaveRoom}
+              className="py-3 px-3 rounded-2xl bg-rose-950/60 hover:bg-rose-900 border border-rose-500/40 text-rose-200 text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1.5 active:scale-95"
+              title="退出牌桌并返回大厅"
+            >
+              <LogOut className="w-4 h-4 text-rose-400" />
+              <span>退出大厅</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onRestartGame}

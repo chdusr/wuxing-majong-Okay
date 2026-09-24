@@ -556,14 +556,29 @@ io.on('connection', socket => {
   // Leave Room
   socket.on('room:leave', (data: { roomId: string; userId: string }, callback) => {
     try {
+      socket.leave(data.roomId);
+      socket.leave(`voice:${data.roomId}`);
+
       const room = roomManager.getRoom(data.roomId);
       if (room) {
         room.removePlayer(data.userId, io);
-        socket.leave(data.roomId);
         room.broadcastState(io);
         roomManager.cleanupEmptyRooms();
         io.emit('lobby:rooms_update', roomManager.getPublicRooms());
       }
+
+      // Also clean up any active voice membership
+      const roomMembers = activeVoiceRooms.get(data.roomId);
+      if (roomMembers) {
+        roomMembers.delete(data.userId);
+        if (roomMembers.size === 0) {
+          activeVoiceRooms.delete(data.roomId);
+        }
+        socket.to(`voice:${data.roomId}`).emit('voice:user_left', {
+          userId: data.userId,
+        });
+      }
+
       currentRoomId = null;
       if (callback) callback({ success: true });
     } catch (e: any) {

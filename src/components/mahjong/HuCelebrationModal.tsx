@@ -3,7 +3,7 @@ import confetti from 'canvas-confetti';
 import { HuResult, MahjongTileData, Player } from '../../types/mahjong';
 import { MahjongTile } from './MahjongTile';
 import { checkThreeTilesKan } from '../../utils/mahjongRules';
-import { Trophy, Sparkles, RefreshCw, ChevronRight, Award, Flame } from 'lucide-react';
+import { Trophy, Sparkles, RefreshCw, ChevronRight, Award, Flame, LogOut } from 'lucide-react';
 import { PlayerAvatar } from './PlayerAvatar';
 
 interface HuCelebrationModalProps {
@@ -15,6 +15,7 @@ interface HuCelebrationModalProps {
   allTiles: MahjongTileData[];
   onNextRound: () => void;
   onRestartGame: () => void;
+  onLeaveRoom?: () => void;
 }
 
 export const HuCelebrationModal: React.FC<HuCelebrationModalProps> = ({
@@ -26,6 +27,7 @@ export const HuCelebrationModal: React.FC<HuCelebrationModalProps> = ({
   allTiles,
   onNextRound,
   onRestartGame,
+  onLeaveRoom,
 }) => {
   useEffect(() => {
     if (isOpen) {
@@ -190,8 +192,20 @@ export const HuCelebrationModal: React.FC<HuCelebrationModalProps> = ({
           </div>
         </div>
 
-        {/* Action Buttons: 重置新局 & 再来一局 */}
-        <div className="w-full flex gap-2.5 sm:gap-3">
+        {/* Action Buttons: 退出房间 & 重置新局 & 再来一局 */}
+        <div className="w-full flex items-center gap-2 sm:gap-2.5">
+          {onLeaveRoom && (
+            <button
+              type="button"
+              onClick={onLeaveRoom}
+              className="py-3 px-3 rounded-2xl bg-rose-950/60 hover:bg-rose-900 border border-rose-500/40 text-rose-200 text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1.5 active:scale-95"
+              title="退出牌桌并返回大厅"
+            >
+              <LogOut className="w-4 h-4 text-rose-400" />
+              <span>退出大厅</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onRestartGame}
